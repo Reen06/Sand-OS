@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# roku-resolve-ifaces — resolve AP and UPSTREAM interface names.
+#
+# Reads /etc/roku-gateway/interfaces.conf and matches the physical wireless
+# interfaces by kernel driver or MAC. Prints shell-eval'able assignments:
+#
+#   AP_IFACE=wlan0
+#   UPSTREAM_IFACE=wlan1
+#   RADIO_COUNT=2
+#
+# Roles are decoupled from kernel wlanN numbering so the config survives
+# reboots and adapter swaps. With a single radio present, that radio is
+# forced to the AP role so the device stays reachable for recovery.
+set -euo pipefail
+
+CONF="${ROKU_INTERFACES_CONF:-/etc/roku-gateway/interfaces.conf}"
+AP_MATCH="driver:brcmfmac"
+UPSTREAM_MATCH="driver:rtw88_8821au,driver:rtl8821au,driver:8821au,driver:rtl8xxxu"
+SINGLE_RADIO_ROLE="ap"
+# shellcheck disable=SC1090
+[ -r "$CONF" ] && . "$CONF"
+
+declare -a IFACES=()
+for path in /sys/class/net/*; do
+    name=$(basename "$path")
+    [ -d "$path/wireless" ] || [ -e "$path/phy80211" ] || continue
+    drv=""
+    [ -e "$path/device/driver" ] && drv=$(basename "$(readlink -f "$path/device/driver")")
+    mac=$(cat "$path/address" 2>/dev/null || echo "")
+    IFACES+=("${name}|${drv}|${mac,,}")
+done
+
+match_iface() {  # $1 = comma-separated match spec; echoes first matching iface
+    local spec="$1" kind val name drv mac cand
+    IFS=',' read -ra cands <<< "$spec"
+    for cand in "${cands[@]}"; do
+        kind="${cand%%:*}"; val="${cand#*:}"
+        for entry in "${IFACES[@]}"; do
+            IFS='|' read -r name drv mac <<< "$entry"
+            case "$kind" in
+                driver) [ "$drv" = "$val" ] && { echo "$name"; return 0; } ;;
+                mac)    [ "$mac" = "${val,,}" ] && { echo "$name"; return 0; } ;;
+                name)   [ "$name" = "$val" ] && { echo "$name"; return 0; } ;;
+            esac
+        done
+    done
+    return 1
+}
+
+ap=$(match_iface "$AP_MATCH" || true)
+up=$(match_iface "$UPSTREAM_MATCH" || true)
+total=${#IFACES[@]}
+
+if [ "$total" -le 1 ]; then
+    only=""
+    [ "$total" -eq 1 ] && IFS='|' read -r only _ _ <<< "${IFACES[0]}"
+    if [ "$SINGLE_RADIO_ROLE" = "ap" ]; then ap="$only"; up=""; else up="$only"; ap=""; fi
+fi
+
+# If a role is still unresolved, assign any remaining distinct interface.
+if [ -z "$ap" ]; then
+    for entry in "${IFACES[@]}"; do
+        IFS='|' read -r name _ _ <<< "$entry"
+        [ "$name" != "$up" ] && { ap="$name"; break; }
+    done
+fi
+if [ -z "$up" ] && [ "$total" -gt 1 ]; then
+    for entry in "${IFACES[@]}"; do
+        IFS='|' read -r name _ _ <<< "$entry"
+        [ "$name" != "$ap" ] && { up="$name"; break; }
+    done
+fi
+
+echo "AP_IFACE=${ap}"
+echo "UPSTREAM_IFACE=${up}"
+echo "RADIO_COUNT=${total}"

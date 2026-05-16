@@ -1,0 +1,24 @@
+[Unit]
+Description=Roku-E8C3 dashboard backend
+Documentation=https://github.com/roku-e8c3
+After=roku-netapply.service
+
+[Service]
+Type=simple
+User=roku
+Group=roku
+EnvironmentFile=-/etc/roku-gateway/roku-gateway.env
+WorkingDirectory=/opt/roku-gateway/backend
+ExecStart=/opt/roku-gateway/venv/bin/python -m app.main
+Restart=always
+RestartSec=3
+# Allow binding port 80 as a non-root user.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+# The dashboard must keep sudo access to the privileged helpers.
+NoNewPrivileges=no
+PrivateTmp=yes
+ProtectSystem=full
+ReadWritePaths=/var/lib/roku-gateway /var/log/roku-gateway
+
+[Install]
+WantedBy=multi-user.target

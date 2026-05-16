@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# roku-fw — privileged firewall helper for the Roku-E8C3 dashboard.
+#
+# Rebuilds the nftables ruleset (base policy + per-device routing rules) from
+# the database. sudo-invoked by the `roku` user under a scoped NOPASSWD rule.
+set -euo pipefail
+
+ROKU_HOME="${ROKU_HOME:-/opt/roku-gateway}"
+
+action="${1:-apply}"
+case "$action" in
+  apply)
+    cd "${ROKU_HOME}/backend"
+    exec "${ROKU_HOME}/venv/bin/python" -m app.netapply firewall
+    ;;
+  *)
+    echo "usage: roku-fw apply" >&2
+    exit 2
+    ;;
+esac

@@ -1,0 +1,76 @@
+#!/usr/sbin/nft -f
+# Roku-E8C3 — base firewall (template).
+#
+# A dedicated `inet roku` table so it never collides with Docker or other
+# nftables users. roku-fw substitutes the placeholders, appends per-device
+# routing/kill-switch rules from the database, and loads the result.
+#
+# Security model:
+#   - The dashboard (port 80/443) and SSH are reachable ONLY from the AP/LAN
+#     side, never from the upstream interface.
+#   - Guest subnet is isolated from the main LAN.
+#   - NAT masquerades LAN/guest traffic out the upstream interface.
+
+table inet roku
+delete table inet roku
+
+table inet roku {
+    # Mangle packets in prerouting so ip rule sees the mark before routing.
+    # type=route is the nftables equivalent of iptables mangle PREROUTING;
+    # marks set here affect the routing decision. Per-device MAC→mark rules
+    # are injected here by apply_firewall.
+    chain prerouting {
+        type route hook prerouting priority mangle; policy accept;
+        # ROKU-MANGLE-RULES
+    }
+
+    chain input {
+        type filter hook input priority 0; policy drop;
+
+        iif "lo" accept
+        ct state established,related accept
+        ct state invalid drop
+        meta l4proto { icmp, icmpv6 } accept
+
+        # From the AP / LAN side only:
+        iifname "{{AP_IFACE}}" udp dport { 67, 68 } accept     comment "DHCP"
+        iifname "{{AP_IFACE}}" meta l4proto { tcp, udp } th dport 53 accept  comment "DNS"
+        iifname "{{AP_IFACE}}" tcp dport { 80, 443 } accept    comment "dashboard"
+        iifname "{{AP_IFACE}}" tcp dport 22 accept             comment "ssh (recovery)"
+
+        # WireGuard listen ports (tunnels terminate locally).
+        udp dport 51820-51829 accept                           comment "wireguard"
+
+        # Anything else — including all traffic from the upstream link —
+        # is dropped by the default policy.
+    }
+
+    chain forward {
+        type filter hook forward priority 0; policy drop;
+
+        ct state established,related accept
+        ct state invalid drop
+
+        # Guest isolation — guest subnet cannot reach the main LAN.
+        ip saddr {{GUEST_NET}} ip daddr {{LAN_NET}} drop
+        ip saddr {{LAN_NET}} ip daddr {{GUEST_NET}} drop
+
+        # Per-device kill-switch and blocked-device drop rules (injected by apply_firewall).
+        # ROKU-DEVICE-RULES
+
+        # LAN and guest may reach the internet via the upstream interface.
+        iifname "{{AP_IFACE}}" oifname "{{UPSTREAM_IFACE}}" accept
+        # Traffic steered into a WireGuard tunnel.
+        iifname "{{AP_IFACE}}" oifname "wg*" accept
+    }
+
+    chain output {
+        type filter hook output priority 0; policy accept;
+    }
+
+    chain postrouting {
+        type nat hook postrouting priority srcnat; policy accept;
+        oifname "{{UPSTREAM_IFACE}}" masquerade
+        oifname "wg*" masquerade
+    }
+}

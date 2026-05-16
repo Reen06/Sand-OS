@@ -1,0 +1,34 @@
+# Roku-E8C3 — hostapd access point configuration (template).
+# Placeholders are substituted by roku-netapply from the database + resolved
+# interface roles. Installed to /etc/hostapd/hostapd.conf.
+
+country_code={{COUNTRY}}
+interface={{AP_IFACE}}
+driver=nl80211
+ssid={{SSID}}
+
+# 2.4 GHz, 802.11n. The onboard Broadcom radio is 2.4 GHz only.
+hw_mode=g
+channel={{CHANNEL}}
+ieee80211n=1
+ht_capab=[HT20][SHORT-GI-20]
+wmm_enabled=1
+
+# Security — WPA2-PSK (CCMP). Broadest client compatibility.
+auth_algs=1
+wpa=2
+wpa_key_mgmt=WPA-PSK
+rsn_pairwise=CCMP
+wpa_passphrase={{WPA_PASSPHRASE}}
+
+# Broadcast the SSID; isolate nothing on the main BSS.
+ignore_broadcast_ssid=0
+ap_isolate=0
+
+# Control interface for live status queries (hostapd_cli).
+ctrl_interface=/var/run/hostapd
+ctrl_interface_group=0
+
+# --- Guest BSS (multi-SSID) ---
+# roku-netapply appends a `bss=` block here when the guest network is enabled
+# and the driver accepts multi-BSS. It is intentionally absent by default.

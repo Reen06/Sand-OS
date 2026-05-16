@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+# roku-wifi — privileged NetworkManager / WiFi helper for the Roku-E8C3 dashboard.
+#
+# Invoked only via sudo by the unprivileged `roku` service user under a NOPASSWD
+# rule scoped to exactly this script. Every argument is validated against a strict
+# allowlist; none are ever interpolated into a shell command.
+set -euo pipefail
+
+usage() {
+    cat >&2 <<'EOF'
+usage: roku-wifi <action> [args]
+  scan [iface]                    rescan and list available networks
+  connect <iface> <ssid> <pw>     join a WPA/WPA2 network
+  connect-open <iface> <ssid>     join an open (no password) network
+  disconnect <iface>              disconnect the upstream interface
+  forget <uuid>                   delete a saved connection by UUID
+  saved                           list saved WiFi connections (JSON lines)
+  mac-get <iface>                 print current MAC address
+  mac-set <iface> <mac>           set MAC address (aa:bb:cc:dd:ee:ff)
+  mac-random <iface>              assign a random locally-administered MAC
+EOF
+    exit 2
+}
+
+# Validate a network interface name: letters, digits, hyphens, up to 15 chars.
+# Must start with a letter.
+validate_iface() {
+    local iface="$1"
+    [[ "$iface" =~ ^[a-zA-Z][a-zA-Z0-9_-]{0,14}$ ]] || {
+        echo "invalid interface: $iface" >&2; exit 3
+    }
+    ip link show "$iface" >/dev/null 2>&1 || {
+        echo "interface not found: $iface" >&2; exit 3
+    }
+}
+
+# Validate SSID: 1..32 printable bytes (we receive the raw string as argv).
+validate_ssid() {
+    local ssid="$1"
+    local len="${#ssid}"
+    [ "$len" -ge 1 ] && [ "$len" -le 32 ] || {
+        echo "SSID must be 1-32 characters" >&2; exit 3
+    }
+}
+
+# Validate WPA passphrase: 8..63 characters.
+validate_pw() {
+    local pw="$1"
+    local len="${#pw}"
+    [ "$len" -ge 8 ] && [ "$len" -le 63 ] || {
+        echo "password must be 8-63 characters" >&2; exit 3
+    }
+}
+
+# Validate a UUID (8-4-4-4-12 hex).
+validate_uuid() {
+    local uuid="$1"
+    [[ "$uuid" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || {
+        echo "invalid UUID: $uuid" >&2; exit 3
+    }
+}
+
+# Validate a MAC address (aa:bb:cc:dd:ee:ff lowercase hex).
+validate_mac() {
+    local mac="$1"
+    [[ "$mac" =~ ^([0-9a-f]{2}:){5}[0-9a-f]{2}$ ]] || {
+        echo "invalid MAC address: $mac" >&2; exit 3
+    }
+}
+
+# Generate a random locally-administered unicast MAC.
+random_laa_mac() {
+    local hex
+    hex=$(openssl rand -hex 6)
+    # Set bit 1 of first byte (locally administered), clear bit 0 (unicast).
+    local first
+    first=$(printf '%02x' $(( 0x${hex:0:2} | 0x02 & 0xfe )))
+    echo "${first}:${hex:2:2}:${hex:4:2}:${hex:6:2}:${hex:8:2}:${hex:10:2}"
+}
+
+cmd="${1:-}"
+case "$cmd" in
+
+  scan)
+    iface="${2:-}"
+    if [ -n "$iface" ]; then
+        validate_iface "$iface"
+        nmcli --terse --fields SSID,BSSID,SIGNAL,SECURITY,CHAN,FREQ \
+            device wifi list --rescan yes ifname "$iface" 2>/dev/null || true
+    else
+        nmcli --terse --fields SSID,BSSID,SIGNAL,SECURITY,CHAN,FREQ \
+            device wifi list --rescan yes 2>/dev/null || true
+    fi
+    ;;
+
+  connect)
+    [ "$#" -ge 4 ] || usage
+    iface="$2"; ssid="$3"; pw="$4"
+    validate_iface "$iface"
+    validate_ssid "$ssid"
+    validate_pw "$pw"
+    # Remove any existing connection with this SSID first to avoid conflicts.
+    existing=$(nmcli -t -f NAME,TYPE connection show 2>/dev/null \
+        | awk -F: '/802-11-wireless$/ {print $1}' | grep -Fx "$ssid" || true)
+    if [ -n "$existing" ]; then
+        nmcli connection delete "$ssid" >/dev/null 2>&1 || true
+    fi
+    nmcli device wifi connect "$ssid" password "$pw" ifname "$iface"
+    ;;
+
+  connect-open)
+    [ "$#" -ge 3 ] || usage
+    iface="$2"; ssid="$3"
+    validate_iface "$iface"
+    validate_ssid "$ssid"
+    existing=$(nmcli -t -f NAME,TYPE connection show 2>/dev/null \
+        | awk -F: '/802-11-wireless$/ {print $1}' | grep -Fx "$ssid" || true)
+    if [ -n "$existing" ]; then
+        nmcli connection delete "$ssid" >/dev/null 2>&1 || true
+    fi
+    nmcli device wifi connect "$ssid" ifname "$iface"
+    ;;
+
+  disconnect)
+    [ "$#" -ge 2 ] || usage
+    iface="$2"
+    validate_iface "$iface"
+    nmcli device disconnect "$iface"
+    ;;
+
+  forget)
+    [ "$#" -ge 2 ] || usage
+    uuid="$2"
+    validate_uuid "$uuid"
+    # Only delete WiFi-type connections for safety.
+    conn_type=$(nmcli -t -f UUID,TYPE connection show "$uuid" 2>/dev/null \
+        | awk -F: '/802-11-wireless/ {found=1} END {print found ? "wifi" : "other"}')
+    [ "$conn_type" = "wifi" ] || {
+        echo "connection $uuid is not a WiFi connection" >&2; exit 3
+    }
+    nmcli connection delete "$uuid"
+    ;;
+
+  saved)
+    # Print saved WiFi connections as tab-separated: uuid name
+    nmcli -t -f UUID,NAME,TYPE connection show 2>/dev/null \
+        | awk -F: '$3 == "802-11-wireless" {printf "%s\t%s\n", $1, $2}' || true
+    ;;
+
+  mac-get)
+    [ "$#" -ge 2 ] || usage
+    iface="$2"
+    validate_iface "$iface"
+    cat "/sys/class/net/${iface}/address" 2>/dev/null || \
+        ip link show "$iface" | awk '/link\/ether/ {print $2}'
+    ;;
+
+  mac-set)
+    [ "$#" -ge 3 ] || usage
+    iface="$2"; mac="$3"
+    validate_iface "$iface"
+    validate_mac "$mac"
+    ip link set "$iface" down 2>/dev/null || true
+    ip link set "$iface" address "$mac"
+    ip link set "$iface" up 2>/dev/null || true
+    nmcli device set "$iface" managed yes 2>/dev/null || true
+    echo "MAC set to $mac on $iface"
+    ;;
+
+  mac-random)
+    [ "$#" -ge 2 ] || usage
+    iface="$2"
+    validate_iface "$iface"
+    mac=$(random_laa_mac)
+    ip link set "$iface" down 2>/dev/null || true
+    ip link set "$iface" address "$mac"
+    ip link set "$iface" up 2>/dev/null || true
+    nmcli device set "$iface" managed yes 2>/dev/null || true
+    echo "$mac"
+    ;;
+
+  *) usage ;;
+esac

@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# roku-sys — privileged system helper for the Roku-E8C3 dashboard.
+#
+# Invoked only via sudo by the unprivileged `roku` service user, under a
+# NOPASSWD rule scoped to exactly this script (see /etc/sudoers.d/roku-gateway).
+# Every command validates its arguments against an allowlist; no caller input
+# is ever passed to a shell.
+set -euo pipefail
+
+# Services the dashboard is permitted to control.
+ALLOWED_SERVICES="roku-dashboard roku-firewall roku-netapply roku-recovery \
+roku-watchdog hostapd dnsmasq NetworkManager pihole-FTL wg-quick@wg0 wg-quick@wg1"
+
+usage() { echo "usage: roku-sys {reboot|shutdown|service-status|service-restart <name>}" >&2; exit 2; }
+
+cmd="${1:-}"
+case "$cmd" in
+  reboot)
+    echo "reboot scheduled"
+    systemctl reboot
+    ;;
+  shutdown)
+    echo "shutdown scheduled"
+    systemctl poweroff
+    ;;
+  service-status)
+    for svc in $ALLOWED_SERVICES; do
+      active=$(systemctl is-active "$svc" 2>/dev/null || true)
+      enabled=$(systemctl is-enabled "$svc" 2>/dev/null || true)
+      echo "${svc} ${active:-unknown} ${enabled:-unknown}"
+    done
+    ;;
+  service-restart)
+    svc="${2:-}"
+    [ -n "$svc" ] || usage
+    case " $ALLOWED_SERVICES " in
+      *" $svc "*) ;;
+      *) echo "service not allowed: $svc" >&2; exit 3 ;;
+    esac
+    systemctl restart "$svc"
+    echo "restarted ${svc}"
+    ;;
+  cutover-confirm)
+    exec /opt/roku-gateway/scripts/roku-apply --confirm
+    ;;
+  *)
+    usage
+    ;;
+esac

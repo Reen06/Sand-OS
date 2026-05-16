@@ -1,0 +1,98 @@
+/* Roku-E8C3 — design tokens.
+ * Dark, matte, muted. Synthesized from the ui-ux-pro-max design system
+ * (dark operations dashboard, status-color strategy, Inter) and the project
+ * style brief (matte slate surfaces — not OLED black — and muted accents). */
+
+@font-face {
+  font-family: "Inter";
+  src: url("/assets/fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces — matte slate */
+  --bg:            #0f1419;
+  --bg-elevated:   #12171f;
+  --surface:       #161c25;
+  --surface-2:     #1c232f;
+  --surface-3:     #232c3a;
+  --border:        #2a3340;
+  --border-strong: #3a4655;
+
+  /* Text */
+  --text:        #e6e9ee;
+  --text-muted:  #9aa6b4;
+  --text-faint:  #6b7787;
+  --text-invert: #0f1419;
+
+  /* Muted accents */
+  --green:  #45b98a;
+  --blue:   #5b9bd5;
+  --purple: #9b87d4;
+  --cyan:   #4fb6c9;
+  --amber:  #d3a44e;
+  --red:    #d8716f;
+
+  /* Low-alpha accent fills for badges, callouts, selected rows */
+  --green-bg:  rgba(69, 185, 138, .13);
+  --blue-bg:   rgba(91, 155, 213, .13);
+  --purple-bg: rgba(155, 135, 212, .13);
+  --cyan-bg:   rgba(79, 182, 201, .13);
+  --amber-bg:  rgba(211, 164, 78, .13);
+  --red-bg:    rgba(216, 113, 111, .14);
+  --neutral-bg: rgba(154, 166, 180, .10);
+
+  /* Semantic roles */
+  --accent:       var(--blue);
+  --accent-hover: #6fa9dd;
+  --ok:           var(--green);
+  --warn:         var(--amber);
+  --danger:       var(--red);
+  --focus-ring:   rgba(91, 155, 213, .6);
+
+  /* Typography */
+  --font-ui:   "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  --fs-xs:   .75rem;     /* 12 */
+  --fs-sm:   .8125rem;   /* 13 */
+  --fs-base: .9375rem;   /* 15 */
+  --fs-md:   1rem;       /* 16 */
+  --fs-lg:   1.125rem;   /* 18 */
+  --fs-xl:   1.375rem;   /* 22 */
+  --fs-2xl:  1.75rem;    /* 28 */
+
+  /* Spacing — 4px scale */
+  --s1: 4px;  --s2: 8px;  --s3: 12px;  --s4: 16px;
+  --s5: 20px; --s6: 24px; --s8: 32px;  --s10: 40px; --s12: 48px;
+
+  /* Radius — modest, intentional */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius:    8px;
+  --radius-lg: 12px;
+
+  /* Elevation */
+  --shadow-1:   0 1px 2px rgba(0, 0, 0, .35);
+  --shadow-2:   0 6px 20px rgba(0, 0, 0, .38);
+  --shadow-pop: 0 16px 40px rgba(0, 0, 0, .55);
+
+  /* Motion */
+  --ease: cubic-bezier(.2, .6, .2, 1);
+  --dur:  160ms;
+
+  /* Layout */
+  --sidebar-w:  240px;
+  --header-h:   56px;
+  --content-max: 1200px;
+
+  /* Z-index scale */
+  --z-sticky: 20;
+  --z-drawer: 40;
+  --z-modal:  100;
+  --z-toast:  1000;
+}

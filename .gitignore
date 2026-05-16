@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Runtime state (never committed — lives in /var/lib/roku-gateway)
+*.db
+*.db-wal
+*.db-shm
+*.sqlite3
+
+# Secrets / generated config
+.env
+secrets/
+*.secret
+
+# Logs and backups
+*.log
+backups/
+
+# Editor / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/

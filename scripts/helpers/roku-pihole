@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# roku-pihole — privileged Pi-hole control helper for the Roku-E8C3 dashboard.
+#
+# Sudo-invoked by the unprivileged `roku` user under a scoped NOPASSWD rule.
+# All pihole CLI calls are fixed strings with no user input interpolated.
+set -euo pipefail
+
+PIHOLE="${PIHOLE:-/usr/local/bin/pihole}"
+
+usage() {
+    echo "usage: roku-pihole {status|enable|disable|restart|dns-failover-on|dns-failover-off}" >&2
+    exit 2
+}
+
+cmd="${1:-}"
+case "$cmd" in
+
+  status)
+    # Emit a compact JSON blob for the dashboard.
+    ftl_active=$(systemctl is-active pihole-FTL 2>/dev/null || echo "inactive")
+    if [ "$ftl_active" != "active" ]; then
+        echo "{\"status\":\"down\",\"ftl_active\":false,\"blocking\":false,\"queries\":0,\"blocked\":0,\"block_pct\":0}"
+        exit 0
+    fi
+    # Try pihole chronometer json (available since v5.2)
+    stats=""
+    if [ -x "$PIHOLE" ]; then
+        stats=$("$PIHOLE" -c -j 2>/dev/null || true)
+    fi
+    if echo "$stats" | grep -q '"dns_queries_today"'; then
+        echo "$stats"
+    else
+        # Minimal fallback if chronometer not available
+        blocking=$([ -f /etc/pihole/pihole-FTL.conf ] && grep -q "BLOCKING_ENABLED=false" /etc/pihole/pihole-FTL.conf && echo "false" || echo "true")
+        echo "{\"status\":\"active\",\"ftl_active\":true,\"blocking\":${blocking},\"queries\":0,\"blocked\":0,\"block_pct\":0}"
+    fi
+    ;;
+
+  enable)
+    [ -x "$PIHOLE" ] || { echo "pihole not installed" >&2; exit 3; }
+    "$PIHOLE" enable
+    echo "Pi-hole blocking enabled"
+    ;;
+
+  disable)
+    [ -x "$PIHOLE" ] || { echo "pihole not installed" >&2; exit 3; }
+    "$PIHOLE" disable
+    echo "Pi-hole blocking disabled"
+    ;;
+
+  disable-mins)
+    mins="${2:-5}"
+    [[ "$mins" =~ ^[0-9]+$ ]] && [ "$mins" -ge 1 ] && [ "$mins" -le 1440 ] || {
+        echo "invalid duration: $mins" >&2; exit 3
+    }
+    [ -x "$PIHOLE" ] || { echo "pihole not installed" >&2; exit 3; }
+    "$PIHOLE" disable "${mins}m"
+    echo "Pi-hole blocking disabled for ${mins} minutes"
+    ;;
+
+  restart)
+    systemctl restart pihole-FTL
+    echo "pihole-FTL restarted"
+    ;;
+
+  dns-failover-on)
+    # Reconfigure dnsmasq to act as resolver when pihole-FTL is down.
+    # Sets port=53 with upstream resolvers and restarts dnsmasq.
+    # The roku-net apply command rebuilds dnsmasq from DB with those settings.
+    ROKU_HOME="${ROKU_HOME:-/opt/roku-gateway}"
+    cd "${ROKU_HOME}/backend"
+    "${ROKU_HOME}/venv/bin/python" - <<'PYEOF'
+import sys, os
+sys.path.insert(0, ".")
+from app.core.settings import settings
+from app.db.repo import Database
+db = Database(settings.db_path)
+db.set_setting("dns_port", "53")
+db.set_setting("lan_dns", db.get_setting("lan_ip", settings.lan_cidr.split("/")[0]))
+db.log_event("system", "DNS failover activated — dnsmasq acting as resolver", level="warn")
+db.close()
+PYEOF
+    exec bash "$(dirname "$0")/roku-net" apply
+    ;;
+
+  dns-failover-off)
+    # Restore normal mode: dnsmasq does DHCP only, pihole-FTL handles DNS.
+    ROKU_HOME="${ROKU_HOME:-/opt/roku-gateway}"
+    cd "${ROKU_HOME}/backend"
+    "${ROKU_HOME}/venv/bin/python" - <<'PYEOF'
+import sys
+sys.path.insert(0, ".")
+from app.core.settings import settings
+from app.db.repo import Database
+db = Database(settings.db_path)
+db.set_setting("dns_port", "0")
+db.set_setting("lan_dns", db.get_setting("lan_ip", settings.lan_cidr.split("/")[0]))
+db.log_event("system", "DNS failover cleared — Pi-hole handling DNS", level="info")
+db.close()
+PYEOF
+    exec bash "$(dirname "$0")/roku-net" apply
+    ;;
+
+  *) usage ;;
+esac

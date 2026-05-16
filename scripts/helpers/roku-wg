@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+# roku-wg — privileged WireGuard helper for the Roku-E8C3 dashboard.
+#
+# Invoked only via sudo by the unprivileged `roku` user under a scoped
+# NOPASSWD rule. Manages wg-quick tunnels with strict argument validation;
+# no caller input ever reaches a shell.
+set -euo pipefail
+
+WG_DIR="/etc/wireguard"
+
+usage() {
+    cat >&2 <<'EOF'
+usage: roku-wg <action> [args]
+  up <iface>         bring a WireGuard tunnel up
+  down <iface>       bring a WireGuard tunnel down
+  status <iface>     show wg status (JSON-friendly key=value)
+  show               show all active tunnels
+  install <iface>    install a .conf from stdin into /etc/wireguard/
+  remove <iface>     stop tunnel and remove its .conf
+  set-dns <iface> <dns1> [dns2]   rewrite DNS= line in a running profile
+EOF
+    exit 2
+}
+
+# Validate a WireGuard interface name: wg0-wg9 (strict allowlist).
+validate_wg_iface() {
+    local iface="$1"
+    [[ "$iface" =~ ^wg[0-9]$ ]] || {
+        echo "invalid WireGuard interface (must be wg0-wg9): $iface" >&2; exit 3
+    }
+}
+
+# Validate an IP address (v4 or v6).
+validate_ip() {
+    local ip="$1"
+    [[ "$ip" =~ ^[0-9a-fA-F:.]+$ ]] || {
+        echo "invalid IP address: $ip" >&2; exit 3
+    }
+}
+
+cmd="${1:-}"
+case "$cmd" in
+
+  up)
+    [ "$#" -ge 2 ] || usage
+    iface="$2"
+    validate_wg_iface "$iface"
+    [ -f "${WG_DIR}/${iface}.conf" ] || {
+        echo "no config found: ${WG_DIR}/${iface}.conf" >&2; exit 3
+    }
+    wg-quick up "$iface"
+    # Set up per-device policy routing (Table = off in the conf means
+    # wg-quick does not create routing rules; we add them here).
+    slot="${iface#wg}"
+    fwmark=$((50 + slot))
+    table_id=$((200 + slot))
+    # Remove stale rule first to keep idempotent.
+    ip rule del fwmark "$fwmark" 2>/dev/null || true
+    ip rule add fwmark "$fwmark" table "$table_id" priority 100
+    ip route flush table "$table_id" 2>/dev/null || true
+    ip route add default dev "$iface" table "$table_id"
+    echo "policy routing: fwmark=${fwmark} → table ${table_id} via ${iface}"
+    ;;
+
+  down)
+    [ "$#" -ge 2 ] || usage
+    iface="$2"
+    validate_wg_iface "$iface"
+    slot="${iface#wg}"
+    fwmark=$((50 + slot))
+    table_id=$((200 + slot))
+    wg-quick down "$iface" 2>/dev/null || true
+    ip rule del fwmark "$fwmark" 2>/dev/null || true
+    ip route flush table "$table_id" 2>/dev/null || true
+    ;;
+
+  status)
+    [ "$#" -ge 2 ] || usage
+    iface="$2"
+    validate_wg_iface "$iface"
+    if ip link show "$iface" >/dev/null 2>&1; then
+        wg show "$iface"
+    else
+        echo "interface=$iface"
+        echo "active=false"
+    fi
+    ;;
+
+  show)
+    wg show all 2>/dev/null || echo "(no active tunnels)"
+    ;;
+
+  install)
+    [ "$#" -ge 2 ] || usage
+    iface="$2"
+    validate_wg_iface "$iface"
+    dest="${WG_DIR}/${iface}.conf"
+    # Bring down first if already running.
+    wg-quick down "$iface" 2>/dev/null || true
+    # Read config from stdin; validate it looks like a WireGuard config.
+    tmpf=$(mktemp)
+    cat > "$tmpf"
+    if grep -q '^\[Interface\]' "$tmpf" && grep -q 'PrivateKey' "$tmpf"; then
+        install -m 0600 -o root -g root "$tmpf" "$dest"
+        rm -f "$tmpf"
+        echo "installed ${iface}.conf"
+    else
+        rm -f "$tmpf"
+        echo "invalid WireGuard config (missing [Interface] or PrivateKey)" >&2
+        exit 4
+    fi
+    ;;
+
+  remove)
+    [ "$#" -ge 2 ] || usage
+    iface="$2"
+    validate_wg_iface "$iface"
+    wg-quick down "$iface" 2>/dev/null || true
+    rm -f "${WG_DIR}/${iface}.conf"
+    echo "removed ${iface}.conf"
+    ;;
+
+  set-dns)
+    [ "$#" -ge 3 ] || usage
+    iface="$2"
+    dns1="$3"
+    dns2="${4:-}"
+    validate_wg_iface "$iface"
+    validate_ip "$dns1"
+    [ -z "$dns2" ] || validate_ip "$dns2"
+    conf="${WG_DIR}/${iface}.conf"
+    [ -f "$conf" ] || { echo "config not found: $conf" >&2; exit 3; }
+    if [ -n "$dns2" ]; then
+        sed -i "s/^DNS = .*/DNS = ${dns1}, ${dns2}/" "$conf"
+    else
+        sed -i "s/^DNS = .*/DNS = ${dns1}/" "$conf"
+    fi
+    # If tunnel is up, re-apply the config
+    if ip link show "$iface" >/dev/null 2>&1; then
+        wg-quick down "$iface" 2>/dev/null || true
+        wg-quick up "$iface"
+    fi
+    echo "DNS updated for $iface"
+    ;;
+
+  *) usage ;;
+esac

@@ -1,0 +1,12 @@
+[Unit]
+Description=Roku-E8C3 health watchdog — runs every 2 minutes
+Documentation=https://github.com/roku-e8c3
+
+[Timer]
+OnBootSec=90
+OnUnitActiveSec=2min
+AccuracySec=15s
+Unit=roku-watchdog.service
+
+[Install]
+WantedBy=timers.target

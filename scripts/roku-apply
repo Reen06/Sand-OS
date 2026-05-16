@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# roku-apply — operator-triggered cutover into router mode, with auto-rollback.
+#
+#   sudo roku-apply             start the cutover (drops the current session)
+#   sudo roku-apply --confirm   keep router mode (cancels the auto-rollback)
+#
+# The cutover snapshots the current network config, hands the access-point
+# radio to hostapd, and arms a timed rollback. If you do not confirm within
+# the timeout the device restores its previous network and reboots — so a
+# failed cutover can never lock you out.
+set -euo pipefail
+
+ROKU_HOME="${ROKU_HOME:-/opt/roku-gateway}"
+STATE_DIR="/var/lib/roku-gateway"
+SNAP_DIR="${STATE_DIR}/cutover-snapshot"
+GUARD_UNIT="roku-rollback-guard"
+ROLLBACK_TIMEOUT="${ROKU_ROLLBACK_TIMEOUT:-300}"
+HELPERS="${ROKU_HOME}/scripts/helpers"
+[ -d "$HELPERS" ] || HELPERS="/usr/local/lib/roku-gateway"
+
+die() { echo "roku-apply: $*" >&2; exit 1; }
+[ "$(id -u)" -eq 0 ] || die "must run as root (use sudo)"
+
+# --- confirm: cancel the pending auto-rollback -----------------------------
+if [ "${1:-}" = "--confirm" ]; then
+    systemctl stop "${GUARD_UNIT}.timer" 2>/dev/null || true
+    systemctl stop "${GUARD_UNIT}.service" 2>/dev/null || true
+    systemctl reset-failed "${GUARD_UNIT}"* 2>/dev/null || true
+    rm -f /run/roku-cutover-pending
+    echo "Cutover confirmed — router mode is now permanent. Auto-rollback cancelled."
+    exit 0
+fi
+
+# --- resolve the access-point interface ------------------------------------
+eval "$(bash "${HELPERS}/roku-resolve-ifaces")"
+[ -n "${AP_IFACE:-}" ] || die "no access-point-capable interface found"
+
+cat <<EOF
+================================================================
+  Roku-E8C3 — cutover into router mode
+================================================================
+  Access-point radio : ${AP_IFACE}
+  Auto-rollback       : ${ROLLBACK_TIMEOUT}s
+
+  Your current connection over this radio WILL DROP now.
+
+  To keep router mode after the cutover:
+    1. Connect a device to the "Roku-E8C3" WiFi network
+    2. Open  http://10.0.0.1  and confirm in Settings,
+       OR run:  sudo roku-apply --confirm
+
+  If you do not confirm within ${ROLLBACK_TIMEOUT}s the device restores
+  its previous network and reboots. You cannot be locked out.
+================================================================
+EOF
+
+# --- snapshot current networking -------------------------------------------
+rm -rf "$SNAP_DIR"
+mkdir -p "$SNAP_DIR/netplan" "$SNAP_DIR/nm"
+cp -a /etc/netplan/. "$SNAP_DIR/netplan/" 2>/dev/null || true
+cp -a /etc/NetworkManager/system-connections/. "$SNAP_DIR/nm/" 2>/dev/null || true
+date -u +%FT%TZ > "$SNAP_DIR/created"
+echo "$AP_IFACE" > "$SNAP_DIR/ap-iface"
+echo "[1/4] networking snapshot saved to ${SNAP_DIR}"
+
+# --- hand the AP radio to hostapd ------------------------------------------
+mkdir -p /etc/NetworkManager/conf.d
+cat > /etc/NetworkManager/conf.d/00-roku-unmanaged.conf <<EOF
+# Roku-E8C3 — the access-point radio is driven by hostapd, not NetworkManager.
+[keyfile]
+unmanaged-devices=interface-name:${AP_IFACE}
+EOF
+ap_con="$(nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null \
+          | awk -F: -v d="$AP_IFACE" '$2==d{print $1}' || true)"
+[ -n "$ap_con" ] && nmcli connection down "$ap_con" 2>/dev/null || true
+systemctl reload NetworkManager 2>/dev/null || systemctl restart NetworkManager || true
+echo "[2/4] ${AP_IFACE} released from NetworkManager"
+
+# --- arm the auto-rollback guard -------------------------------------------
+touch /run/roku-cutover-pending
+systemctl stop "${GUARD_UNIT}.timer" 2>/dev/null || true
+systemd-run --quiet --unit="$GUARD_UNIT" --on-active="${ROLLBACK_TIMEOUT}" \
+    "${ROKU_HOME}/scripts/roku-rollback" auto
+echo "[3/4] auto-rollback armed (${ROLLBACK_TIMEOUT}s)"
+
+# --- bring up the access point and dashboard -------------------------------
+systemctl enable roku-netapply roku-dashboard roku-recovery roku-watchdog.timer 2>/dev/null || true
+systemctl restart roku-netapply
+systemctl restart roku-dashboard
+echo "[4/4] access point and dashboard started — broadcasting Roku-E8C3"
+echo
+echo "Reconnect to Roku-E8C3 and confirm within ${ROLLBACK_TIMEOUT}s."
