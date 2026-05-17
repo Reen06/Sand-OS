@@ -1,6 +1,6 @@
 """Upstream WiFi service — nmcli wrappers and captive portal detection.
 
-Read-only queries (scan list, saved connections) run via the roku-wifi sudo
+Read-only queries (scan list, saved connections) run via the sand-wifi sudo
 helper to ensure the rescan forces fresh data. All state-changing calls
 (connect, disconnect, forget) also go through the helper.
 
@@ -37,7 +37,7 @@ def scan_networks(iface: Optional[str] = None) -> list[dict]:
     args = ["scan"]
     if iface:
         args.append(iface)
-    res = run_helper("roku-wifi", *args, timeout=20)
+    res = run_helper("sand-wifi", *args, timeout=20)
     networks: list[dict] = []
     seen: set[str] = set()
     for line in res.lines():
@@ -69,7 +69,7 @@ def scan_networks(iface: Optional[str] = None) -> list[dict]:
 
 def saved_connections() -> list[dict]:
     """Return saved WiFi connections from NetworkManager."""
-    res = run_helper("roku-wifi", "saved", timeout=10)
+    res = run_helper("sand-wifi", "saved", timeout=10)
     conns: list[dict] = []
     for line in res.lines():
         parts = line.split("\t", 1)
@@ -82,42 +82,42 @@ def saved_connections() -> list[dict]:
 def connect(iface: str, ssid: str, password: Optional[str]) -> tuple[bool, str]:
     """Connect the upstream interface to a WiFi network."""
     if password:
-        res = run_helper("roku-wifi", "connect", iface, ssid, password, timeout=40)
+        res = run_helper("sand-wifi", "connect", iface, ssid, password, timeout=40)
     else:
-        res = run_helper("roku-wifi", "connect-open", iface, ssid, timeout=40)
+        res = run_helper("sand-wifi", "connect-open", iface, ssid, timeout=40)
     msg = res.stdout or res.stderr or ("connected" if res.ok else "connection failed")
     return res.ok, msg
 
 
 def disconnect(iface: str) -> tuple[bool, str]:
     """Disconnect the upstream interface."""
-    res = run_helper("roku-wifi", "disconnect", iface, timeout=15)
+    res = run_helper("sand-wifi", "disconnect", iface, timeout=15)
     msg = res.stdout or res.stderr or ("disconnected" if res.ok else "disconnect failed")
     return res.ok, msg
 
 
 def forget(uuid: str) -> tuple[bool, str]:
     """Delete a saved connection by UUID."""
-    res = run_helper("roku-wifi", "forget", uuid, timeout=10)
+    res = run_helper("sand-wifi", "forget", uuid, timeout=10)
     msg = res.stdout or res.stderr or ("forgotten" if res.ok else "delete failed")
     return res.ok, msg
 
 
 def get_mac(iface: str) -> Optional[str]:
     """Return the current hardware/effective MAC of an interface."""
-    res = run_helper("roku-wifi", "mac-get", iface, timeout=5)
+    res = run_helper("sand-wifi", "mac-get", iface, timeout=5)
     return res.stdout.strip() if res.ok else None
 
 
 def set_mac(iface: str, mac: str) -> tuple[bool, str]:
     """Set a specific MAC address on the interface."""
-    res = run_helper("roku-wifi", "mac-set", iface, mac, timeout=10)
+    res = run_helper("sand-wifi", "mac-set", iface, mac, timeout=10)
     return res.ok, res.stdout or res.stderr
 
 
 def randomize_mac(iface: str) -> tuple[bool, str]:
     """Assign a random locally-administered MAC to the interface."""
-    res = run_helper("roku-wifi", "mac-random", iface, timeout=10)
+    res = run_helper("sand-wifi", "mac-random", iface, timeout=10)
     return res.ok, res.stdout.strip() if res.ok else res.stderr
 
 

@@ -5,18 +5,18 @@
 1. Check hostapd is running: `systemctl status hostapd`
 2. Check there are no errors: `journalctl -u hostapd --no-pager | tail -30`
 3. Check the AP interface has its address: `ip addr show wlan0`
-4. Re-apply networking: `sudo roku-net apply`
-5. Last resort: `sudo roku-rollback` to revert to previous networking
+4. Re-apply networking: `sudo sand-net apply`
+5. Last resort: `sudo sand-rollback` to revert to previous networking
 
 ---
 
 ## Dashboard not reachable at `http://10.0.0.1`
 
 1. Confirm you're connected to `Roku-E8C3` (not another network)
-2. Check dashboard: `systemctl status roku-dashboard`
+2. Check dashboard: `systemctl status sand-dashboard`
 3. Check it's bound to the right address: `ss -tlnp | grep :80`
-4. Restart: `sudo systemctl restart roku-dashboard`
-5. View logs: `journalctl -u roku-dashboard -n 50`
+4. Restart: `sudo systemctl restart sand-dashboard`
+5. View logs: `journalctl -u sand-dashboard -n 50`
 
 ---
 
@@ -24,7 +24,7 @@
 
 1. Check upstream: `nmcli connection show --active`
 2. Check IP forwarding: `sysctl net.ipv4.ip_forward` (should be `1`)
-3. Check nftables: `sudo nft list table inet roku` — look for `postrouting masquerade`
+3. Check nftables: `sudo nft list table inet sand` — look for `postrouting masquerade`
 4. Check the upstream interface has a default route: `ip route show`
 5. Try connecting upstream manually from WiFi page
 
@@ -34,9 +34,9 @@
 
 1. Check Pi-hole: `systemctl status pihole-FTL`
 2. Test DNS directly: `dig @10.0.0.1 example.com`
-3. Check dnsmasq is DHCP-only (port=0): `grep port= /etc/dnsmasq.d/roku.conf`
+3. Check dnsmasq is DHCP-only (port=0): `grep port= /etc/dnsmasq.d/sand.conf`
 4. If Pi-hole is down, DNS failover should activate within ~6 minutes (watchdog)
-5. Force failover: `sudo roku-pihole dns-failover-on`
+5. Force failover: `sudo sand-pihole dns-failover-on`
 
 ---
 
@@ -45,17 +45,17 @@
 1. Check the tunnel state: `sudo wg show wg0`
 2. Check the config exists: `ls -la /etc/wireguard/wg0.conf`
 3. Check the endpoint is reachable: `ping -c3 <endpoint-host>`
-4. Check nftables allows WireGuard ports: `sudo nft list table inet roku | grep 51820`
+4. Check nftables allows WireGuard ports: `sudo nft list table inet sand | grep 51820`
 5. Check logs: `journalctl -k | grep wireguard`
 
 ---
 
 ## Kill-switch not working (device reaches internet without VPN)
 
-1. Verify the device has a fwmark: `sudo nft list table inet roku | grep <device-mac>`
+1. Verify the device has a fwmark: `sudo nft list table inet sand | grep <device-mac>`
 2. Verify the ip rule exists: `ip rule show | grep fwmark`
-3. Rebuild firewall: `sudo roku-fw apply`
-4. Re-apply networking (also rebuilds firewall): `sudo roku-net apply`
+3. Rebuild firewall: `sudo sand-fw apply`
+4. Re-apply networking (also rebuilds firewall): `sudo sand-net apply`
 
 ---
 
@@ -65,7 +65,7 @@
 2. Check the driver loaded: `lsmod | grep rtw`
 3. Check interfaces: `iw dev`
 4. If the adapter was plugged in after boot, the watchdog will re-apply networking within 2 minutes
-5. Trigger manually: `sudo roku-net apply`
+5. Trigger manually: `sudo sand-net apply`
 
 ---
 
@@ -81,16 +81,16 @@
 
 ```bash
 # All Roku services
-systemctl status roku-dashboard roku-netapply roku-recovery roku-watchdog.timer roku-firewall
+systemctl status sand-dashboard sand-netapply sand-recovery sand-watchdog.timer sand-firewall
 
 # Recent events from all Roku units
-journalctl -u 'roku-*' --since '1 hour ago' --no-pager
+journalctl -u 'sand-*' --since '1 hour ago' --no-pager
 
 # Network state
 ip addr show
 ip rule show
 ip route show
-sudo nft list table inet roku
+sudo nft list table inet sand
 sudo wg show all
 
 # AP status

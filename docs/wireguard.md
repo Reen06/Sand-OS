@@ -26,8 +26,8 @@ From the VPN page, click **Connect** or **Disconnect** next to the profile.
 From the CLI:
 
 ```bash
-sudo roku-wg up wg0
-sudo roku-wg down wg0
+sudo sand-wg up wg0
+sudo sand-wg down wg0
 ```
 
 ---
@@ -97,7 +97,7 @@ ip rule show
 ip route show table 200
 
 # Check nftables marks
-sudo nft list table inet roku
+sudo nft list table inet sand
 
 # View WireGuard logs
 journalctl -k | grep wireguard

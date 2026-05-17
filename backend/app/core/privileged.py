@@ -1,7 +1,7 @@
 """Run whitelisted privileged helper scripts via sudo.
 
-The dashboard service runs as the unprivileged ``roku`` user. Every action
-needing root goes through a fixed helper script in ROKU_HELPER_DIR, invoked
+The dashboard service runs as the unprivileged ``sand`` user. Every action
+needing root goes through a fixed helper script in SAND_HELPER_DIR, invoked
 via ``sudo -n`` under a NOPASSWD rule scoped to exactly those scripts.
 Arguments are always passed as a list (never a shell string) and the helper
 name is checked against an allowlist, so untrusted input cannot reach a shell.
@@ -13,9 +13,9 @@ from dataclasses import dataclass
 
 from .settings import settings
 
-# Helper scripts installed to ROKU_HELPER_DIR. Each performs strict argument
+# Helper scripts installed to SAND_HELPER_DIR. Each performs strict argument
 # validation of its own; this set is the outer allowlist.
-HELPERS = {"roku-sys", "roku-net", "roku-fw", "roku-wifi", "roku-wg", "roku-pihole"}
+HELPERS = {"sand-sys", "sand-net", "sand-fw", "sand-wifi", "sand-wg", "sand-pihole"}
 
 
 @dataclass

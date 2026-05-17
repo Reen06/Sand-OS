@@ -1,5 +1,5 @@
 # Roku-E8C3 — DHCP and DNS for the access point (template).
-# Substituted by roku-netapply and installed to /etc/dnsmasq.d/roku.conf.
+# Substituted by sand-netapply and installed to /etc/dnsmasq.d/sand.conf.
 #
 # DNS handling: until Pi-hole is integrated this file resolves DNS directly.
 # The Pi-hole phase rewrites {{DNS_PORT}} to 0 (disabling dnsmasq's resolver)
@@ -13,8 +13,8 @@ except-interface={{UPSTREAM_IFACE}}
 domain-needed
 bogus-priv
 dhcp-authoritative
-domain=roku.lan
-local=/roku.lan/
+domain=sand.lan
+local=/sand.lan/
 
 # DNS — port 0 disables the resolver (Pi-hole takes over).
 port={{DNS_PORT}}
@@ -27,8 +27,8 @@ dhcp-range=set:lan,{{LAN_DHCP_START}},{{LAN_DHCP_END}},255.255.255.0,12h
 dhcp-option=tag:lan,option:router,{{AP_IP}}
 dhcp-option=tag:lan,option:dns-server,{{LAN_DNS}}
 
-# Guest scope is written to /etc/dnsmasq.d/roku-guest.conf when enabled.
+# Guest scope is written to /etc/dnsmasq.d/sand-guest.conf when enabled.
 
 dhcp-leasefile=/var/lib/misc/dnsmasq.leases
-log-facility=/var/log/roku-gateway/dnsmasq.log
+log-facility=/var/log/sandos/dnsmasq.log
 log-dhcp

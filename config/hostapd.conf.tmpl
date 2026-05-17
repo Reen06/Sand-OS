@@ -1,5 +1,5 @@
 # Roku-E8C3 — hostapd access point configuration (template).
-# Placeholders are substituted by roku-netapply from the database + resolved
+# Placeholders are substituted by sand-netapply from the database + resolved
 # interface roles. Installed to /etc/hostapd/hostapd.conf.
 
 country_code={{COUNTRY}}
@@ -30,5 +30,5 @@ ctrl_interface=/var/run/hostapd
 ctrl_interface_group=0
 
 # --- Guest BSS (multi-SSID) ---
-# roku-netapply appends a `bss=` block here when the guest network is enabled
+# sand-netapply appends a `bss=` block here when the guest network is enabled
 # and the driver accepts multi-BSS. It is intentionally absent by default.

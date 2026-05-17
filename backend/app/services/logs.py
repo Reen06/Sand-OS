@@ -1,6 +1,6 @@
 """Read recent logs from systemd-journald.
 
-The ``roku`` service user is added to the ``systemd-journal`` group at install
+The ``sand`` service user is added to the ``systemd-journal`` group at install
 time, so journalctl is readable without privilege escalation.
 """
 from __future__ import annotations
@@ -10,14 +10,14 @@ import subprocess
 # Friendly log source -> systemd unit. None means the full journal.
 UNIT_MAP: dict[str, str | None] = {
     "system": None,
-    "dashboard": "roku-dashboard.service",
+    "dashboard": "sand-dashboard.service",
     "hostapd": "hostapd.service",
     "dnsmasq": "dnsmasq.service",
     "wifi": "NetworkManager.service",
-    "firewall": "roku-firewall.service",
-    "netapply": "roku-netapply.service",
-    "recovery": "roku-recovery.service",
-    "watchdog": "roku-watchdog.service",
+    "firewall": "sand-firewall.service",
+    "netapply": "sand-netapply.service",
+    "recovery": "sand-recovery.service",
+    "watchdog": "sand-watchdog.service",
     "pihole": "pihole-FTL.service",
     "wireguard": "wg-quick@wg0.service",
 }

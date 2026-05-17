@@ -2,17 +2,17 @@
 Description=Roku-E8C3 apply networking (access point, DHCP, firewall)
 Documentation=https://github.com/roku-e8c3
 After=sysinit.target local-fs.target
-Before=roku-dashboard.service
-Wants=roku-dashboard.service
+Before=sand-dashboard.service
+Wants=sand-dashboard.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-EnvironmentFile=-/etc/roku-gateway/roku-gateway.env
-WorkingDirectory=/opt/roku-gateway/backend
+EnvironmentFile=-/etc/sandos/sandos.env
+WorkingDirectory=/opt/sandos/backend
 # Give a USB WiFi adapter a moment to enumerate before resolving roles.
 ExecStartPre=/bin/sleep 3
-ExecStart=/opt/roku-gateway/venv/bin/python -m app.netapply apply
+ExecStart=/opt/sandos/venv/bin/python -m app.netapply apply
 TimeoutStartSec=90
 
 [Install]

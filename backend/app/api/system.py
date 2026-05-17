@@ -29,7 +29,7 @@ def get_settings(db: Database = Depends(get_db), _=Depends(require_auth)) -> dic
 
 @router.get("/services")
 def services(_=Depends(require_auth)) -> dict:
-    res = run_helper("roku-sys", "service-status")
+    res = run_helper("sand-sys", "service-status")
     items = []
     for line in res.lines():
         parts = line.split()
@@ -42,17 +42,17 @@ def services(_=Depends(require_auth)) -> dict:
 
 @router.post("/services/{name}/restart")
 def restart_service(name: str, _=Depends(require_csrf)) -> dict:
-    res = run_helper("roku-sys", "service-restart", name)
+    res = run_helper("sand-sys", "service-restart", name)
     return {"ok": res.ok, "message": res.stdout or res.stderr}
 
 
 @router.post("/reboot")
 def reboot(_=Depends(require_csrf)) -> dict:
-    res = run_helper("roku-sys", "reboot")
+    res = run_helper("sand-sys", "reboot")
     return {"ok": res.ok, "message": res.stdout or res.stderr}
 
 
 @router.post("/shutdown")
 def shutdown(_=Depends(require_csrf)) -> dict:
-    res = run_helper("roku-sys", "shutdown")
+    res = run_helper("sand-sys", "shutdown")
     return {"ok": res.ok, "message": res.stdout or res.stderr}

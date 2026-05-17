@@ -74,7 +74,7 @@ def uptime_seconds() -> int:
 
 
 def hostname() -> str:
-    return _read("/proc/sys/kernel/hostname") or "roku"
+    return _read("/proc/sys/kernel/hostname") or "sand"
 
 
 def throttled() -> bool:

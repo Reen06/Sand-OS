@@ -1,0 +1,13 @@
+[Unit]
+Description=Roku-E8C3 health watchdog
+Documentation=https://github.com/roku-e8c3
+After=sand-dashboard.service sand-netapply.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/sandos/sandos.env
+WorkingDirectory=/opt/sandos/backend
+ExecStart=/opt/sandos/venv/bin/python -m app.watchdog
+TimeoutStartSec=60
+StandardOutput=journal
+StandardError=journal

@@ -37,7 +37,7 @@ def status() -> dict:
     if not installed():
         return _not_installed()
 
-    res = run_helper("roku-pihole", "status", timeout=8)
+    res = run_helper("sand-pihole", "status", timeout=8)
     if not res.ok or not res.stdout:
         return _down(failover=_is_failover())
 
@@ -72,29 +72,29 @@ def status() -> dict:
 def set_blocking(enabled: bool, duration_mins: Optional[int] = None) -> tuple[bool, str]:
     """Enable or disable Pi-hole ad blocking."""
     if enabled:
-        res = run_helper("roku-pihole", "enable", timeout=15)
+        res = run_helper("sand-pihole", "enable", timeout=15)
     elif duration_mins:
-        res = run_helper("roku-pihole", "disable-mins", str(duration_mins), timeout=15)
+        res = run_helper("sand-pihole", "disable-mins", str(duration_mins), timeout=15)
     else:
-        res = run_helper("roku-pihole", "disable", timeout=15)
+        res = run_helper("sand-pihole", "disable", timeout=15)
     return res.ok, res.stdout or res.stderr
 
 
 def restart() -> tuple[bool, str]:
     """Restart the pihole-FTL service."""
-    res = run_helper("roku-pihole", "restart", timeout=20)
+    res = run_helper("sand-pihole", "restart", timeout=20)
     return res.ok, res.stdout or res.stderr
 
 
 def activate_failover() -> tuple[bool, str]:
     """Switch dnsmasq to resolver mode when Pi-hole is down."""
-    res = run_helper("roku-pihole", "dns-failover-on", timeout=30)
+    res = run_helper("sand-pihole", "dns-failover-on", timeout=30)
     return res.ok, res.stdout or res.stderr
 
 
 def deactivate_failover() -> tuple[bool, str]:
     """Restore dnsmasq to DHCP-only mode once Pi-hole is healthy again."""
-    res = run_helper("roku-pihole", "dns-failover-off", timeout=30)
+    res = run_helper("sand-pihole", "dns-failover-off", timeout=30)
     return res.ok, res.stdout or res.stderr
 
 

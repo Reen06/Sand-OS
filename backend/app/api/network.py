@@ -18,19 +18,19 @@ def network_status(_=Depends(require_auth)) -> dict:
         "interfaces": network.resolve_interfaces(),
         "ap": network.ap_status(),
         "upstream": network.upstream_status(),
-        "cutover_pending": Path("/run/roku-cutover-pending").exists(),
+        "cutover_pending": Path("/run/sand-cutover-pending").exists(),
     }
 
 
 @router.post("/apply")
 def network_apply(_=Depends(require_csrf)) -> dict:
     """Re-apply the access point, DHCP and firewall from current settings."""
-    res = run_helper("roku-net", "apply", timeout=120)
+    res = run_helper("sand-net", "apply", timeout=120)
     return {"ok": res.ok, "output": res.stdout or res.stderr}
 
 
 @router.post("/cutover/confirm")
 def cutover_confirm(_=Depends(require_csrf)) -> dict:
     """Confirm a pending cutover, cancelling the timed auto-rollback."""
-    res = run_helper("roku-sys", "cutover-confirm")
+    res = run_helper("sand-sys", "cutover-confirm")
     return {"ok": res.ok, "message": res.stdout or res.stderr}

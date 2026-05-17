@@ -8,16 +8,16 @@
 #
 #   sudo ./uninstall.sh [--purge]
 #
-# --purge   also remove /etc/roku-gateway, /var/lib/roku-gateway and the
+# --purge   also remove /etc/sandos, /var/lib/sandos and the
 #           Python venv (leaves config and data by default for reinstall)
 set -euo pipefail
 
-PREFIX="/opt/roku-gateway"
-ETC="/etc/roku-gateway"
-STATE="/var/lib/roku-gateway"
-LOGDIR="/var/log/roku-gateway"
-HELPERDIR="/usr/local/lib/roku-gateway"
-SVC_USER="roku"
+PREFIX="/opt/sandos"
+ETC="/etc/sandos"
+STATE="/var/lib/sandos"
+LOGDIR="/var/log/sandos"
+HELPERDIR="/usr/local/lib/sandos"
+SVC_USER="sand"
 SNAP_DIR="${STATE}/cutover-snapshot"
 PURGE=0
 
@@ -39,32 +39,32 @@ done
 [ "$(id -u)" -eq 0 ] || { echo "must run as root" >&2; exit 1; }
 
 say "Stopping Roku-E8C3 services"
-systemctl stop roku-watchdog.timer roku-watchdog.service 2>/dev/null || true
-systemctl stop roku-dashboard roku-netapply roku-netapply roku-recovery \
-    roku-firewall 2>/dev/null || true
-systemctl disable roku-dashboard roku-netapply roku-recovery roku-firewall \
-    roku-watchdog.timer 2>/dev/null || true
+systemctl stop sand-watchdog.timer sand-watchdog.service 2>/dev/null || true
+systemctl stop sand-dashboard sand-netapply sand-netapply sand-recovery \
+    sand-firewall 2>/dev/null || true
+systemctl disable sand-dashboard sand-netapply sand-recovery sand-firewall \
+    sand-watchdog.timer 2>/dev/null || true
 
 say "Removing systemd units"
-for unit in roku-dashboard roku-netapply roku-recovery roku-firewall \
-            roku-watchdog.service roku-watchdog.timer; do
+for unit in sand-dashboard sand-netapply sand-recovery sand-firewall \
+            sand-watchdog.service sand-watchdog.timer; do
     rm -f "/etc/systemd/system/${unit}"
 done
 systemctl daemon-reload
 
 say "Removing privileged helpers and sudoers"
-rm -f /etc/sudoers.d/roku-gateway
+rm -f /etc/sudoers.d/sandos
 rm -rf "$HELPERDIR"
-rm -f /usr/local/sbin/roku-apply /usr/local/sbin/roku-rollback
+rm -f /usr/local/sbin/sand-apply /usr/local/sbin/sand-rollback
 
 say "Restoring network configuration"
 if [ -d "$SNAP_DIR" ]; then
     ap_iface=$(cat "${SNAP_DIR}/ap-iface" 2>/dev/null || true)
     # Remove hostapd and dnsmasq configs we installed.
-    rm -f /etc/hostapd/hostapd.conf /etc/dnsmasq.d/roku.conf \
-          /etc/dnsmasq.d/roku-guest.conf /etc/sysctl.d/99-roku-gateway.conf
+    rm -f /etc/hostapd/hostapd.conf /etc/dnsmasq.d/sand.conf \
+          /etc/dnsmasq.d/sand-guest.conf /etc/sysctl.d/99-sandos.conf
     # Remove NM unmanaged override.
-    rm -f /etc/NetworkManager/conf.d/00-roku-unmanaged.conf
+    rm -f /etc/NetworkManager/conf.d/00-sand-unmanaged.conf
     # Restore netplan if we have a snapshot.
     if [ -d "${SNAP_DIR}/netplan" ] && ls "${SNAP_DIR}/netplan/"*.yaml >/dev/null 2>&1; then
         cp -a "${SNAP_DIR}/netplan/." /etc/netplan/
@@ -80,14 +80,14 @@ if [ -d "$SNAP_DIR" ]; then
     say "Network configuration restored from cutover snapshot"
 else
     warn "No cutover snapshot found — restoring base networking state"
-    rm -f /etc/hostapd/hostapd.conf /etc/dnsmasq.d/roku.conf \
-          /etc/dnsmasq.d/roku-guest.conf
-    rm -f /etc/NetworkManager/conf.d/00-roku-unmanaged.conf
+    rm -f /etc/hostapd/hostapd.conf /etc/dnsmasq.d/sand.conf \
+          /etc/dnsmasq.d/sand-guest.conf
+    rm -f /etc/NetworkManager/conf.d/00-sand-unmanaged.conf
     systemctl restart NetworkManager 2>/dev/null || true
 fi
 
-say "Flushing nftables roku table"
-nft delete table inet roku 2>/dev/null || true
+say "Flushing nftables sand table"
+nft delete table inet sand 2>/dev/null || true
 
 say "Removing WireGuard tunnels"
 for i in 0 1 2 3 4 5 6 7 8 9; do
@@ -110,13 +110,11 @@ fi
 systemctl disable hostapd dnsmasq 2>/dev/null || true
 systemctl stop hostapd dnsmasq 2>/dev/null || true
 
-cat <<EOF
-
+echo -e "
 ${c_ok}================================================================${c_x}
   Roku-E8C3 uninstalled.
 
   Network configuration has been restored.
   Pi-hole and WireGuard packages are still installed (remove manually
   with: sudo apt remove pihole wireguard-tools if no longer needed).
-${c_ok}================================================================${c_x}
-EOF
+${c_ok}================================================================${c_x}"

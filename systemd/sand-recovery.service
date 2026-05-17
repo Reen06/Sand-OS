@@ -1,16 +1,16 @@
 [Unit]
 Description=Roku-E8C3 boot recovery check
 Documentation=https://github.com/roku-e8c3
-After=roku-dashboard.service roku-netapply.service
-Wants=roku-dashboard.service
+After=sand-dashboard.service sand-netapply.service
+Wants=sand-dashboard.service
 
 [Service]
 Type=oneshot
-EnvironmentFile=-/etc/roku-gateway/roku-gateway.env
-WorkingDirectory=/opt/roku-gateway/backend
+EnvironmentFile=-/etc/sandos/sandos.env
+WorkingDirectory=/opt/sandos/backend
 # Let the dashboard finish starting before the health check runs.
 ExecStartPre=/bin/sleep 8
-ExecStart=/opt/roku-gateway/venv/bin/python -m app.recovery
+ExecStart=/opt/sandos/venv/bin/python -m app.recovery
 TimeoutStartSec=120
 
 [Install]

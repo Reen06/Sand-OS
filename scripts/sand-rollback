@@ -38,7 +38,7 @@ fi
 
 # Do not re-cut-over on the next boot.
 systemctl disable roku-netapply 2>/dev/null || true
-rm -f /run/roku-cutover-pending
+rm -f /run/sand-cutover-pending
 
 logger -t roku-rollback "networking restored — rebooting"
 echo "roku-rollback: previous networking restored. Rebooting now."

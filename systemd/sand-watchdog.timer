@@ -6,7 +6,7 @@ Documentation=https://github.com/roku-e8c3
 OnBootSec=90
 OnUnitActiveSec=2min
 AccuracySec=15s
-Unit=roku-watchdog.service
+Unit=sand-watchdog.service
 
 [Install]
 WantedBy=timers.target

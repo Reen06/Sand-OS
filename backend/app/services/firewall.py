@@ -1,7 +1,7 @@
 """Per-device routing and firewall management.
 
 Builds nftables device-routing rules from the SQLite database and installs
-them via the roku-fw helper. The base ruleset (hostapd, NAT, guest isolation)
+them via the sand-fw helper. The base ruleset (hostapd, NAT, guest isolation)
 lives in the nftables template; this module writes only the per-device block.
 
 Routing model:
@@ -15,8 +15,8 @@ have their forwarded traffic dropped (blackhole) by the `fwd` chain, EXCEPT:
   • DHCP (udp 67,68) and DNS (udp/tcp 53) — always passes.
   These exceptions are part of the base template; per-device rules add on top.
 
-Policy routing tables (ip rule + ip route) are set up by roku-apply and
-re-applied by roku-firewall.service at boot.
+Policy routing tables (ip rule + ip route) are set up by sand-apply and
+re-applied by sand-firewall.service at boot.
 """
 from __future__ import annotations
 
@@ -123,7 +123,7 @@ def set_device_route(db: Database, mac: str,
 def rebuild_firewall(db: Database) -> tuple[bool, str]:
     """Rebuild the nftables ruleset with current per-device routing rules."""
     from ..core.privileged import run_helper
-    res = run_helper("roku-fw", "apply", timeout=30)
+    res = run_helper("sand-fw", "apply", timeout=30)
     if res.ok:
         db.log_event("firewall", "Firewall ruleset rebuilt")
     else:

@@ -1,8 +1,8 @@
 """Roku-E8C3 health watchdog.
 
-Runs as root every 2 minutes via roku-watchdog.timer. Checks:
+Runs as root every 2 minutes via sand-watchdog.timer. Checks:
   1. Access point (hostapd + dnsmasq) — restart if down.
-  2. Dashboard (roku-dashboard) — restart if down.
+  2. Dashboard (sand-dashboard) — restart if down.
   3. Pi-hole FTL — if down for N consecutive ticks, activate DNS failover.
   4. USB adapter plug/unplug — re-apply networking if radio count changed.
 
@@ -62,10 +62,10 @@ def check_ap(db: Database) -> None:
 
 
 def check_dashboard(db: Database) -> None:
-    if _is_active("roku-dashboard"):
+    if _is_active("sand-dashboard"):
         return
     log("Dashboard not active — restarting")
-    ok = _restart("roku-dashboard")
+    ok = _restart("sand-dashboard")
     db.log_event("system",
                  "Watchdog: dashboard restarted" if ok
                  else "Watchdog: dashboard restart failed",

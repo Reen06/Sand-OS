@@ -24,8 +24,8 @@ sudo hostnamectl set-hostname Roku-E8C3
 ## 2. Clone the repository
 
 ```bash
-git clone https://github.com/yourorg/roku-gateway.git ~/roku-gateway
-cd ~/roku-gateway
+git clone https://github.com/yourorg/sandos.git ~/sandos
+cd ~/sandos
 ```
 
 ---
@@ -38,7 +38,7 @@ sudo ./install.sh
 
 The installer:
 - Installs system packages (hostapd, dnsmasq, nftables, wireguard-tools, etc.)
-- Creates the `roku` service user
+- Creates the `sand` service user
 - Installs the FastAPI dashboard + Python venv
 - Installs systemd services
 - Optionally installs Pi-hole (DNS filtering) — requires internet access
@@ -49,7 +49,7 @@ The installer:
 
 | Flag | Effect |
 |------|--------|
-| `--unattended` | Take passwords from `ROKU_DASHBOARD_PASSWORD` / `ROKU_AP_PASSWORD` env vars |
+| `--unattended` | Take passwords from `SAND_DASHBOARD_PASSWORD` / `SAND_AP_PASSWORD` env vars |
 | `--no-pihole` | Skip Pi-hole installation |
 | `--with-raspap` | Also run the RaspAP installer (optional; its web UI is disabled) |
 
@@ -87,7 +87,7 @@ You should see `wlan0` (onboard) and `wlan1` (USB adapter).
 > Have a plan to reconnect via the new `Roku-E8C3` SSID.
 
 ```bash
-sudo roku-apply
+sudo sand-apply
 ```
 
 The cutover:
@@ -99,7 +99,7 @@ The cutover:
 Connect a device to `Roku-E8C3`, open `http://10.0.0.1`, and confirm the cutover from the Settings page — or run on the Pi:
 
 ```bash
-sudo roku-apply --confirm
+sudo sand-apply --confirm
 ```
 
 ---

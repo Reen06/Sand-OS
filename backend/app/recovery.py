@@ -1,6 +1,6 @@
 """Boot-time recovery check.
 
-Runs as root after the dashboard starts (roku-recovery.service). It guarantees
+Runs as root after the dashboard starts (sand-recovery.service). It guarantees
 the device is always reachable:
 
   * If the recovery flag file is present (a user can `touch` it from another
@@ -25,7 +25,7 @@ from .core.settings import settings
 from .db.repo import Database
 from .services import network
 
-RECOVERY_FLAG = "/boot/firmware/roku-recovery"
+RECOVERY_FLAG = "/boot/firmware/sand-recovery"
 
 
 def log(msg: str) -> None:
@@ -67,9 +67,9 @@ def main() -> int:
         else:
             log(f"access point healthy on {ap['interface']} ({ap['ip']})")
 
-        if not _active("roku-dashboard"):
+        if not _active("sand-dashboard"):
             log("dashboard service not active — restarting")
-            subprocess.run(["systemctl", "restart", "roku-dashboard"], timeout=20)
+            subprocess.run(["systemctl", "restart", "sand-dashboard"], timeout=20)
 
         log("recovery check complete")
         return 0

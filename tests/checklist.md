@@ -8,9 +8,9 @@ Check each item manually unless marked *automated*.
 ## 0. Pre-requisites
 
 - [ ] Pi has at least 256 MB free RAM (`free -h`)
-- [ ] `/opt/roku-gateway/` is present (install complete)
+- [ ] `/opt/sandos/` is present (install complete)
 - [ ] USB WiFi adapter is plugged in (two radios: `iw dev` shows two)
-- [ ] `sudo roku-apply` has NOT been run yet (or `roku-rollback` was used)
+- [ ] `sudo sand-apply` has NOT been run yet (or `sand-rollback` was used)
 
 ---
 
@@ -19,11 +19,11 @@ Check each item manually unless marked *automated*.
 - [ ] `sudo ./install.sh` completes with no red errors
 - [ ] Dashboard password was accepted (≥ 10 chars)
 - [ ] WiFi password was accepted (≥ 8 chars)
-- [ ] `roku-dashboard.service` is active: `systemctl is-active roku-dashboard`
-- [ ] `roku-netapply.service` is NOT running yet (deferred to `roku-apply`)
-- [ ] `/var/lib/roku-gateway/roku.db` exists and is owned by `roku:roku`
-- [ ] `/etc/sudoers.d/roku-gateway` present and `visudo -c` passes
-- [ ] `sudo -l -U roku` shows roku-sys, roku-net, roku-fw, roku-wifi, roku-wg, roku-pihole
+- [ ] `sand-dashboard.service` is active: `systemctl is-active sand-dashboard`
+- [ ] `sand-netapply.service` is NOT running yet (deferred to `sand-apply`)
+- [ ] `/var/lib/sandos/sand.db` exists and is owned by `sand:sand`
+- [ ] `/etc/sudoers.d/sandos` present and `visudo -c` passes
+- [ ] `sudo -l -U sand` shows sand-sys, sand-net, sand-fw, sand-wifi, sand-wg, sand-pihole
 - [ ] Dashboard reachable at `http://<current-IP>` before cutover
 - [ ] Sign in with dashboard password succeeds
 
@@ -32,11 +32,11 @@ Check each item manually unless marked *automated*.
 ## 2. Access-point boot
 
 ```
-sudo roku-apply
+sudo sand-apply
 ```
 
 - [ ] Command prints all four `[1/4]…[4/4]` steps
-- [ ] Auto-rollback timer armed: `systemctl list-timers roku-rollback-guard`
+- [ ] Auto-rollback timer armed: `systemctl list-timers sand-rollback-guard`
 - [ ] SSID `Roku-E8C3` appears in WiFi scan on a phone within 30 s
 - [ ] Phone connects to `Roku-E8C3` and receives a `10.0.0.x` address
 - [ ] Dashboard reachable from phone at `http://10.0.0.1`
@@ -44,11 +44,11 @@ sudo roku-apply
 ### Confirm cutover (prevents rollback)
 
 ```
-sudo roku-apply --confirm
+sudo sand-apply --confirm
 ```
 
 - [ ] "Cutover confirmed" message printed
-- [ ] `roku-rollback-guard.timer` is no longer active
+- [ ] `sand-rollback-guard.timer` is no longer active
 
 ---
 
@@ -146,7 +146,7 @@ After reboot:
 - [ ] Guest network broadcasts if it was enabled
 - [ ] WireGuard tunnels marked enabled are reconnected (`wg show`)
 - [ ] Device routing assignments are restored (check Routing page)
-- [ ] Firewall ruleset is active: `nft list table inet roku`
+- [ ] Firewall ruleset is active: `nft list table inet sand`
 
 ---
 
@@ -167,7 +167,7 @@ After reboot:
 
 ```
 # Cut over without confirming:
-sudo roku-apply
+sudo sand-apply
 # Wait for ROLLBACK_TIMEOUT (default 300 s) without confirming
 ```
 
@@ -183,13 +183,13 @@ sudo roku-apply
 From another machine (or USB-mounted SD card):
 
 ```
-touch /boot/firmware/roku-recovery
+touch /boot/firmware/sand-recovery
 sudo reboot
 ```
 
-- [ ] After reboot, `roku-recovery.service` detects the flag
+- [ ] After reboot, `sand-recovery.service` detects the flag
 - [ ] `apply_networking()` is called at boot regardless of saved state
-- [ ] `/boot/firmware/roku-recovery` is removed automatically
+- [ ] `/boot/firmware/sand-recovery` is removed automatically
 - [ ] AP comes up cleanly
 
 ---
@@ -215,10 +215,10 @@ sudo systemctl stop pihole-FTL
 sudo ./uninstall.sh
 ```
 
-- [ ] All roku-* services stopped and disabled
-- [ ] `/opt/roku-gateway/` removed
-- [ ] `/etc/sudoers.d/roku-gateway` removed
-- [ ] nftables roku table flushed: `nft list tables` shows no `roku` table
+- [ ] All sand-* services stopped and disabled
+- [ ] `/opt/sandos/` removed
+- [ ] `/etc/sudoers.d/sandos` removed
+- [ ] nftables sand table flushed: `nft list tables` shows no `sand` table
 - [ ] WireGuard tunnels brought down: `ip link show | grep wg` empty
 - [ ] Original netplan / NM networking restored
 - [ ] Device connects back to the pre-install network after restart
@@ -227,8 +227,8 @@ sudo ./uninstall.sh
 sudo ./uninstall.sh --purge
 ```
 
-- [ ] `/etc/roku-gateway/`, `/var/lib/roku-gateway/`, `/var/log/roku-gateway/` removed
-- [ ] `roku` system user deleted
+- [ ] `/etc/sandos/`, `/var/lib/sandos/`, `/var/log/sandos/` removed
+- [ ] `sand` system user deleted
 
 ---
 
@@ -238,7 +238,7 @@ sudo ./uninstall.sh --purge
 - [ ] Session cookie is `HttpOnly; SameSite=Strict`
 - [ ] State-changing API calls without CSRF token return 403
 - [ ] Dashboard not reachable from the upstream interface IP (firewall blocks it)
-- [ ] `sudo -l -U roku` shows only the whitelisted helpers (no `ALL` or bash)
-- [ ] `/etc/sudoers.d/roku-gateway` is mode 0440, owned root:root
+- [ ] `sudo -l -U sand` shows only the whitelisted helpers (no `ALL` or bash)
+- [ ] `/etc/sudoers.d/sandos` is mode 0440, owned root:root
 - [ ] WireGuard conf files in `/etc/wireguard/` are mode 0600
-- [ ] `/var/lib/roku-gateway/roku.db` is mode 0640, not world-readable
+- [ ] `/var/lib/sandos/sand.db` is mode 0640, not world-readable

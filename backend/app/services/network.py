@@ -15,8 +15,8 @@ from ..core.settings import settings
 
 LEASE_FILE = "/var/lib/misc/dnsmasq.leases"
 _RESOLVER_CANDIDATES = [
-    settings.helper_dir / "roku-resolve-ifaces",
-    Path(__file__).resolve().parents[3] / "scripts" / "helpers" / "roku-resolve-ifaces",
+    settings.helper_dir / "sand-resolve-ifaces",
+    Path(__file__).resolve().parents[3] / "scripts" / "helpers" / "sand-resolve-ifaces",
 ]
 
 

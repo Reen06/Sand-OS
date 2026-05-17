@@ -3,25 +3,25 @@
 #
 # Installs the dashboard, networking foundation and services on Raspberry Pi
 # OS. It is STAGED: nothing about the live network changes here. When you are
-# ready, run `sudo roku-apply` to cut the device over into router mode.
+# ready, run `sudo sand-apply` to cut the device over into router mode.
 #
 #   sudo ./install.sh [--unattended] [--with-raspap]
 #
 # --unattended    take the dashboard/WiFi passwords from the environment
-#                 (ROKU_DASHBOARD_PASSWORD, ROKU_AP_PASSWORD) or generate them
+#                 (SAND_DASHBOARD_PASSWORD, SAND_AP_PASSWORD) or generate them
 # --with-raspap   additionally run the RaspAP installer (optional; its web UI
 #                 is disabled — the foundation here already uses RaspAP's
 #                 proven hostapd/dnsmasq/nftables components directly)
 set -euo pipefail
 
 SRC="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
-PREFIX="/opt/roku-gateway"
-ETC="/etc/roku-gateway"
-STATE="/var/lib/roku-gateway"
-LOGDIR="/var/log/roku-gateway"
-HELPERDIR="/usr/local/lib/roku-gateway"
-DB="${STATE}/roku.db"
-SVC_USER="roku"
+PREFIX="/opt/sandos"
+ETC="/etc/sandos"
+STATE="/var/lib/sandos"
+LOGDIR="/var/log/sandos"
+HELPERDIR="/usr/local/lib/sandos"
+DB="${STATE}/sand.db"
+SVC_USER="sand"
 UNATTENDED=0
 WITH_RASPAP=0
 WITH_PIHOLE=1
@@ -55,7 +55,7 @@ validate_env() {
     [ "$free_kb" -gt 524288 ] || die "need at least 512 MB free disk space"
     command -v apt-get >/dev/null || die "apt-get not found"
     id -u 1000 >/dev/null 2>&1 || warn "no uid 1000 account found"
-    getent passwd pi >/dev/null && warn "default 'pi' account exists — consider removing it"
+    getent passwd pi >/dev/null && warn "default 'pi' account exists — consider removing it" || true
 }
 
 # --------------------------------------------------------------- packages
@@ -108,24 +108,24 @@ setup_dirs() {
 
 install_config() {
     say "Installing configuration"
-    [ -f "$ETC/roku-gateway.env" ] || cp "$SRC/config/roku-gateway.env" "$ETC/roku-gateway.env"
+    [ -f "$ETC/sandos.env" ] || cp "$SRC/config/sandos.env" "$ETC/sandos.env"
     [ -f "$ETC/interfaces.conf" ]  || cp "$SRC/config/interfaces.conf"  "$ETC/interfaces.conf"
-    echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/99-roku-gateway.conf
+    echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/99-sandos.conf
     sysctl -q -w net.ipv4.ip_forward=1 || true
 }
 
 install_helpers() {
     say "Installing privileged helpers"
     install -m 0755 -o root -g root "$SRC"/scripts/helpers/* "$HELPERDIR/"
-    ln -sf "$PREFIX/scripts/roku-apply"    /usr/local/sbin/roku-apply
-    ln -sf "$PREFIX/scripts/roku-rollback" /usr/local/sbin/roku-rollback
-    chmod 0755 "$PREFIX"/scripts/roku-apply "$PREFIX"/scripts/roku-rollback
-    local sudoers="/etc/sudoers.d/roku-gateway"
+    ln -sf "$PREFIX/scripts/sand-apply"    /usr/local/sbin/sand-apply
+    ln -sf "$PREFIX/scripts/sand-rollback" /usr/local/sbin/sand-rollback
+    chmod 0755 "$PREFIX"/scripts/sand-apply "$PREFIX"/scripts/sand-rollback
+    local sudoers="/etc/sudoers.d/sandos"
     cat > "${sudoers}.tmp" <<EOF
 # Roku-E8C3 — the dashboard service user may run only these helper scripts.
-${SVC_USER} ALL=(root) NOPASSWD: ${HELPERDIR}/roku-sys, ${HELPERDIR}/roku-net, \
-${HELPERDIR}/roku-fw, ${HELPERDIR}/roku-wifi, ${HELPERDIR}/roku-wg, \
-${HELPERDIR}/roku-pihole
+${SVC_USER} ALL=(root) NOPASSWD: ${HELPERDIR}/sand-sys, ${HELPERDIR}/sand-net, \
+${HELPERDIR}/sand-fw, ${HELPERDIR}/sand-wifi, ${HELPERDIR}/sand-wg, \
+${HELPERDIR}/sand-pihole
 EOF
     if visudo -cqf "${sudoers}.tmp"; then
         install -m 0440 -o root -g root "${sudoers}.tmp" "$sudoers"
@@ -173,7 +173,7 @@ install_pihole() {
     say "Installing Pi-hole (unattended)"
 
     local ap_ip
-    ap_ip=$(echo "${ROKU_LAN_CIDR:-10.0.0.1/24}" | cut -d/ -f1)
+    ap_ip=$(echo "${SAND_LAN_CIDR:-10.0.0.1/24}" | cut -d/ -f1)
 
     # Pre-seed Pi-hole configuration so the installer runs non-interactively.
     mkdir -p /etc/pihole
@@ -211,9 +211,12 @@ EOF
         # Pi-hole's FTL must NOT start on port 53 until we cut over (dnsmasq
         # handles DNS for now). We start it but configure via our db.
         systemctl enable pihole-FTL 2>/dev/null || true
-        # Disable lighttpd in case the installer enabled it.
+        # Pi-hole v6 has its own embedded web server (replaces lighttpd).
+        # Move it off port 80 so our dashboard can own that port.
+        pihole-FTL --config webserver.port 8080 2>/dev/null || true
+        # Disable lighttpd in case it is still present (Pi-hole v5 path).
         systemctl disable --now lighttpd 2>/dev/null || true
-        say "Pi-hole installed; pihole-FTL enabled (activates at cutover)"
+        say "Pi-hole installed; pihole-FTL enabled (web UI on :8080, activates at cutover)"
     else
         warn "Pi-hole installer did not complete — DNS filtering will be unavailable"
         warn "Re-run with PIHOLE_SKIP_OS_CHECK=true bash <(curl -sSL https://install.pi-hole.net) --unattended"
@@ -236,8 +239,8 @@ init_database() {
     say "Initialising database and credentials"
     local dash_pw ap_pw
     if [ "$UNATTENDED" -eq 1 ]; then
-        dash_pw="${ROKU_DASHBOARD_PASSWORD:-$(openssl rand -base64 12)}"
-        ap_pw="${ROKU_AP_PASSWORD:-$(openssl rand -base64 12)}"
+        dash_pw="${SAND_DASHBOARD_PASSWORD:-$(openssl rand -base64 12)}"
+        ap_pw="${SAND_AP_PASSWORD:-$(openssl rand -base64 12)}"
         warn "unattended: dashboard password = ${dash_pw}"
         warn "unattended: WiFi password      = ${ap_pw}"
     else
@@ -246,18 +249,18 @@ init_database() {
         echo "  Set the WiFi password for the 'Roku-E8C3' network"
         ap_pw="$(prompt_password 'WiFi password' 8)"
     fi
-    ROKU_DB="$DB" ROKU_DASH_PW="$dash_pw" ROKU_AP_PW="$ap_pw" \
+    SAND_DB="$DB" SAND_DASH_PW="$dash_pw" SAND_AP_PW="$ap_pw" \
         "$PREFIX/venv/bin/python" - <<'PYEOF'
 import os, sys
 from pathlib import Path
-sys.path.insert(0, "/opt/roku-gateway/backend")
+sys.path.insert(0, "/opt/sandos/backend")
 from app.db.repo import Database
 from app.db.migrations import init_db
 from app.core.security import hash_password
-db = Database(os.environ["ROKU_DB"])
-init_db(db, Path("/opt/roku-gateway/backend/app/db/schema.sql"))
-db.set_setting("dashboard_password", hash_password(os.environ["ROKU_DASH_PW"]))
-db.set_setting("ap_passphrase", os.environ["ROKU_AP_PW"])
+db = Database(os.environ["SAND_DB"])
+init_db(db, Path("/opt/sandos/backend/app/db/schema.sql"))
+db.set_setting("dashboard_password", hash_password(os.environ["SAND_DASH_PW"]))
+db.set_setting("ap_passphrase", os.environ["SAND_AP_PW"])
 db.set_setting("ap_ssid", "Roku-E8C3")
 db.set_setting("hostname", "Roku-E8C3")
 db.set_setting("lan_ip", "10.0.0.1")
@@ -277,17 +280,16 @@ PYEOF
 # --------------------------------------------------------------- services
 enable_services() {
     say "Enabling services"
-    systemctl enable roku-dashboard roku-netapply roku-recovery roku-watchdog.timer >/dev/null 2>&1 || true
+    systemctl enable sand-dashboard sand-netapply sand-recovery sand-watchdog.timer >/dev/null 2>&1 || true
     # Start the dashboard now so it can be used before cutover; do NOT start
-    # roku-netapply — that is the cutover, and is left to `roku-apply`.
-    systemctl restart roku-dashboard
+    # sand-netapply — that is the cutover, and is left to `sand-apply`.
+    systemctl restart sand-dashboard
 }
 
 finish() {
     local ip
     ip=$(hostname -I 2>/dev/null | awk '{print $1}')
-    cat <<EOF
-
+    echo -e "
 ${c_ok}================================================================${c_x}
   Roku-E8C3 installation complete — staged, networking untouched.
 
@@ -297,13 +299,12 @@ ${c_ok}================================================================${c_x}
   Sign in with the dashboard password you just set.
 
   When you are ready to turn this device into a travel router:
-      sudo roku-apply
+      sudo sand-apply
 
-  That cuts over into access-point mode (SSID "Roku-E8C3",
+  That cuts over into access-point mode (SSID \"Roku-E8C3\",
   http://10.0.0.1). It is protected by a timed auto-rollback, so a
   failed cutover cannot lock you out.
-${c_ok}================================================================${c_x}
-EOF
+${c_ok}================================================================${c_x}"
 }
 
 main() {

@@ -53,7 +53,7 @@ def update_config(body: GuestConfigBody,
     db.log_event("system", "Guest network config updated")
 
     # Re-apply networking to activate the change.
-    res = run_helper("roku-net", "apply", timeout=60)
+    res = run_helper("sand-net", "apply", timeout=60)
     if not res.ok:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY,
                             f"Config saved but apply failed: {res.stderr}")

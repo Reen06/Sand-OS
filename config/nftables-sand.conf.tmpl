@@ -1,8 +1,8 @@
 #!/usr/sbin/nft -f
 # Roku-E8C3 — base firewall (template).
 #
-# A dedicated `inet roku` table so it never collides with Docker or other
-# nftables users. roku-fw substitutes the placeholders, appends per-device
+# A dedicated `inet sand` table so it never collides with Docker or other
+# nftables users. sand-fw substitutes the placeholders, appends per-device
 # routing/kill-switch rules from the database, and loads the result.
 #
 # Security model:
@@ -11,10 +11,10 @@
 #   - Guest subnet is isolated from the main LAN.
 #   - NAT masquerades LAN/guest traffic out the upstream interface.
 
-table inet roku
-delete table inet roku
+table inet sand
+delete table inet sand
 
-table inet roku {
+table inet sand {
     # Mangle packets in prerouting so ip rule sees the mark before routing.
     # type=route is the nftables equivalent of iptables mangle PREROUTING;
     # marks set here affect the routing decision. Per-device MAC→mark rules

@@ -1,15 +1,15 @@
 [Unit]
 Description=Roku-E8C3 dashboard backend
 Documentation=https://github.com/roku-e8c3
-After=roku-netapply.service
+After=sand-netapply.service
 
 [Service]
 Type=simple
-User=roku
-Group=roku
-EnvironmentFile=-/etc/roku-gateway/roku-gateway.env
-WorkingDirectory=/opt/roku-gateway/backend
-ExecStart=/opt/roku-gateway/venv/bin/python -m app.main
+User=sand
+Group=sand
+EnvironmentFile=-/etc/sandos/sandos.env
+WorkingDirectory=/opt/sandos/backend
+ExecStart=/opt/sandos/venv/bin/python -m app.main
 Restart=always
 RestartSec=3
 # Allow binding port 80 as a non-root user.
@@ -18,7 +18,7 @@ AmbientCapabilities=CAP_NET_BIND_SERVICE
 NoNewPrivileges=no
 PrivateTmp=yes
 ProtectSystem=full
-ReadWritePaths=/var/lib/roku-gateway /var/log/roku-gateway
+ReadWritePaths=/var/lib/sandos /var/log/sandos
 
 [Install]
 WantedBy=multi-user.target

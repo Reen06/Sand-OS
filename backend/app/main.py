@@ -1,6 +1,6 @@
 """FastAPI application factory for the Roku-E8C3 dashboard backend.
 
-Run in production via the venv's uvicorn (see systemd/roku-dashboard.service)
+Run in production via the venv's uvicorn (see systemd/sand-dashboard.service)
 or directly with ``python -m app.main`` for development.
 """
 from __future__ import annotations
@@ -16,7 +16,7 @@ from .core.settings import settings
 from .db.migrations import init_db
 from .db.repo import Database
 
-log = logging.getLogger("roku")
+log = logging.getLogger("sand")
 
 _API_ROUTERS = (auth.router, overview.router, network.router,
                 system.router, logs.router, wifi.router, pihole.router,

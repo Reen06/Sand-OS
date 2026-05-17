@@ -43,7 +43,7 @@ Run on the target Pi:
     sudo ./install.sh
 
 The installer stages everything without disrupting live networking. When you
-are ready, run `roku-apply` to cut over into router mode. The cutover is
+are ready, run `sand-apply` to cut over into router mode. The cutover is
 protected by a timed auto-rollback. See `docs/` for full guides.
 
 ## Networking

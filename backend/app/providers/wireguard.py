@@ -1,7 +1,7 @@
 """WireGuard provider — wg-quick tunnel management.
 
 Profiles are stored in /etc/wireguard/<iface>.conf (installed via the
-roku-wg helper) and tracked in the wireguard_profiles DB table.
+sand-wg helper) and tracked in the wireguard_profiles DB table.
 
 Tunnel interface assignment: wg0, wg1, … assigned in order at upload time.
 The first unused slot is assigned; slots are freed on profile deletion.
@@ -47,7 +47,7 @@ class WireGuardProvider(VPNProvider):
     def import_profile(self, name: str, conf_text: str) -> tuple[bool, str]:
         """Validate + install a WireGuard .conf and register it in the DB.
 
-        The conf is sent through the roku-wg helper (which validates the
+        The conf is sent through the sand-wg helper (which validates the
         minimal structure and installs it at 0600 root:root). We then parse
         the public key, address and endpoint from the file for the DB record.
         """
@@ -65,7 +65,7 @@ class WireGuardProvider(VPNProvider):
             return False, "All WireGuard interface slots (wg0-wg9) are in use"
 
         # Send to the privileged helper via stdin — it validates and writes the file.
-        res = run_helper("roku-wg", "install", iface, stdin=conf_text, timeout=10)
+        res = run_helper("sand-wg", "install", iface, stdin=conf_text, timeout=10)
         if not res.ok:
             return False, f"Config rejected: {res.stderr or res.stdout}"
 
@@ -93,7 +93,7 @@ class WireGuardProvider(VPNProvider):
             return False, f"Profile '{name}' not found"
         # Bring down first.
         self.disconnect(name)
-        res = run_helper("roku-wg", "remove", profile["iface"], timeout=10)
+        res = run_helper("sand-wg", "remove", profile["iface"], timeout=10)
         self._db.execute(
             "DELETE FROM wireguard_profiles WHERE name=?", (name,))
         self._db.log_event("vpn", f"WireGuard profile '{name}' deleted")
@@ -105,7 +105,7 @@ class WireGuardProvider(VPNProvider):
         p = self.get_profile(profile)
         if not p:
             return False, f"Profile '{profile}' not found"
-        res = run_helper("roku-wg", "up", p["iface"], timeout=20)
+        res = run_helper("sand-wg", "up", p["iface"], timeout=20)
         if res.ok:
             self._db.execute(
                 "UPDATE wireguard_profiles SET enabled=1 WHERE name=?", (profile,))
@@ -116,7 +116,7 @@ class WireGuardProvider(VPNProvider):
         p = self.get_profile(profile)
         if not p:
             return False, f"Profile '{profile}' not found"
-        res = run_helper("roku-wg", "down", p["iface"], timeout=15)
+        res = run_helper("sand-wg", "down", p["iface"], timeout=15)
         self._db.execute(
             "UPDATE wireguard_profiles SET enabled=0 WHERE name=?", (profile,))
         self._db.log_event("vpn", f"WireGuard tunnel '{profile}' disconnected")
@@ -152,14 +152,14 @@ class WireGuardProvider(VPNProvider):
         args = ["set-dns", p["iface"], dns1]
         if dns2:
             args.append(dns2)
-        res = run_helper("roku-wg", *args, timeout=15)
+        res = run_helper("sand-wg", *args, timeout=15)
         return res.ok, res.stdout or res.stderr
 
 
 # ------------------------------------------------------------------ helpers
 
 def _iface_status(iface: str) -> TunnelStatus:
-    res = run_helper("roku-wg", "status", iface, timeout=8)
+    res = run_helper("sand-wg", "status", iface, timeout=8)
     if not res.ok or "active=false" in res.stdout:
         return TunnelStatus(False, iface, None, None, None, 0, 0, {})
     info: dict[str, str] = {}

@@ -1,0 +1,12 @@
+[Unit]
+Description=Roku-E8C3 rebuild firewall ruleset from database
+After=sand-netapply.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/sandos/sandos.env
+WorkingDirectory=/opt/sandos/backend
+ExecStart=/opt/sandos/venv/bin/python -m app.netapply firewall
+
+[Install]
+WantedBy=multi-user.target

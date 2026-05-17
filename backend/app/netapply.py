@@ -1,7 +1,7 @@
 """Networking apply tool — renders config and brings the access point up.
 
-Runs as root: at boot via roku-netapply.service, and on demand via the
-roku-net sudo helper. It is idempotent — safe to run repeatedly. Progress is
+Runs as root: at boot via sand-netapply.service, and on demand via the
+sand-net sudo helper. It is idempotent — safe to run repeatedly. Progress is
 written to stdout, which systemd captures into the journal (visible on the
 dashboard Logs page under "Network apply").
 
@@ -60,7 +60,7 @@ def apply_firewall(db: Database, ifaces: dict) -> bool:
     from .services.firewall import device_rules_nft
     ap = ifaces["ap"] or "lo"
     up = ifaces["upstream"] or "lo"
-    ruleset = render("nftables-roku.conf.tmpl", {
+    ruleset = render("nftables-sand.conf.tmpl", {
         "AP_IFACE": ap,
         "UPSTREAM_IFACE": up,
         "LAN_NET": _net(settings.lan_cidr),
@@ -70,7 +70,7 @@ def apply_firewall(db: Database, ifaces: dict) -> bool:
     mangle_rules, forward_rules = device_rules_nft(db)
     ruleset = ruleset.replace("        # ROKU-MANGLE-RULES", mangle_rules)
     ruleset = ruleset.replace("        # ROKU-DEVICE-RULES", forward_rules)
-    out_path = settings.config_dir / "nftables-roku.conf"
+    out_path = settings.config_dir / "nftables-sand.conf"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(ruleset)
     ok = run(["nft", "-f", str(out_path)]).returncode == 0
@@ -96,7 +96,7 @@ def apply_networking(db: Database) -> int:
         "AP_IFACE": ap,
         "SSID": _setting(db, "ap_ssid", settings.ap_ssid),
         "CHANNEL": _setting(db, "ap_channel", "6"),
-        "WPA_PASSPHRASE": _setting(db, "ap_passphrase", "roku-setup-0000"),
+        "WPA_PASSPHRASE": _setting(db, "ap_passphrase", "sand-setup-0000"),
     })
     # Append guest BSS block if enabled.
     guest_enabled = _setting(db, "guest_enabled", "0") == "1"
@@ -122,7 +122,7 @@ ap_isolate=1
     os.chmod("/etc/hostapd/hostapd.conf", 0o600)
 
     # dnsmasq — main LAN DHCP
-    dnsmasq = render("dnsmasq-roku.conf.tmpl", {
+    dnsmasq = render("dnsmasq-sand.conf.tmpl", {
         "AP_IFACE": ap,
         "UPSTREAM_IFACE": up or "lo",
         "DNS_PORT": _setting(db, "dns_port", "53"),
@@ -134,11 +134,11 @@ ap_isolate=1
         "LAN_DNS": _setting(db, "lan_dns", ap_ip),
     })
     os.makedirs("/etc/dnsmasq.d", exist_ok=True)
-    with open("/etc/dnsmasq.d/roku.conf", "w") as fh:
+    with open("/etc/dnsmasq.d/sand.conf", "w") as fh:
         fh.write(dnsmasq)
 
     # dnsmasq — guest DHCP scope (separate file, removed when guest disabled).
-    guest_conf = "/etc/dnsmasq.d/roku-guest.conf"
+    guest_conf = "/etc/dnsmasq.d/sand-guest.conf"
     if guest_enabled:
         gprefix = ".".join(guest_ip.split(".")[:3])
         guest_dnsmasq = (
@@ -185,7 +185,7 @@ ap_isolate=1
 def _restore_wireguard_tunnels(db: Database) -> None:
     """Re-connect WireGuard tunnels marked enabled in the DB.
 
-    ip rule / ip route state is not persistent; roku-wg up re-adds it.
+    ip rule / ip route state is not persistent; sand-wg up re-adds it.
     Called at the end of apply_networking so VPN routing survives reboots.
     """
     try:
@@ -194,7 +194,7 @@ def _restore_wireguard_tunnels(db: Database) -> None:
             "SELECT iface, name FROM wireguard_profiles WHERE enabled=1")
         for row in rows:
             iface, name = row["iface"], row["name"]
-            res = run_helper("roku-wg", "up", iface, timeout=20)
+            res = run_helper("sand-wg", "up", iface, timeout=20)
             if res.ok:
                 log(f"WireGuard tunnel '{name}' ({iface}) restored")
             else:
