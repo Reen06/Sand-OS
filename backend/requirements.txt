@@ -5,3 +5,9 @@ uvicorn>=0.30,<1.0
 pydantic>=2.7,<3.0
 itsdangerous>=2.1,<3.0
 python-multipart>=0.0.9
+# Peripheral drivers — e-paper display, I2C battery gauge, GPS/LTE serial
+RPi.GPIO>=0.7
+spidev>=3.6
+smbus2>=0.4
+Pillow>=10.0
+pyserial>=3.5

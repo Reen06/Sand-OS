@@ -1,0 +1,14 @@
+[Unit]
+Description=Roku-E8C3 e-paper status display refresh
+Documentation=https://github.com/Reen06/Sand-OS
+After=sand-netapply.service sand-dashboard.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/sandos/sandos.env
+WorkingDirectory=/opt/sandos/backend
+Environment=PYTHONPATH=/opt/sandos/backend
+ExecStart=/usr/bin/python3 -m app.display_update
+TimeoutStartSec=60
+StandardOutput=journal
+StandardError=journal

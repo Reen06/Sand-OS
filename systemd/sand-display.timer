@@ -1,0 +1,12 @@
+[Unit]
+Description=Refresh Roku-E8C3 e-paper status display every 60 seconds
+Documentation=https://github.com/Reen06/Sand-OS
+
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=60
+Unit=sand-display.service
+AccuracySec=5
+
+[Install]
+WantedBy=timers.target

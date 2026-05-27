@@ -281,6 +281,8 @@ PYEOF
 enable_services() {
     say "Enabling services"
     systemctl enable sand-dashboard sand-netapply sand-recovery sand-watchdog.timer >/dev/null 2>&1 || true
+    # e-paper display timer — optional, fails gracefully if no display attached.
+    systemctl enable sand-display.timer >/dev/null 2>&1 || true
     # Start the dashboard now so it can be used before cutover; do NOT start
     # sand-netapply — that is the cutover, and is left to `sand-apply`.
     systemctl restart sand-dashboard
