@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# roku-net — privileged networking helper for the Roku-E8C3 dashboard.
+# sand-net — privileged networking helper for the Roku-E8C3 dashboard.
 #
-# sudo-invoked by the unprivileged `roku` user under a scoped NOPASSWD rule.
+# sudo-invoked by the unprivileged `sand` user under a scoped NOPASSWD rule.
 # It only dispatches to the netapply tool / systemctl with a fixed verb set;
 # no caller argument reaches a shell.
 set -euo pipefail
 
-ROKU_HOME="${ROKU_HOME:-/opt/roku-gateway}"
-PYTHON="${ROKU_HOME}/venv/bin/python"
-BACKEND="${ROKU_HOME}/backend"
+SAND_HOME="${SAND_HOME:-/opt/sandos}"
+PYTHON="${SAND_HOME}/venv/bin/python"
+BACKEND="${SAND_HOME}/backend"
 
 action="${1:-}"
 case "$action" in
@@ -21,7 +21,7 @@ case "$action" in
     echo "access point services restarted"
     ;;
   *)
-    echo "usage: roku-net {apply|firewall|status|restart-ap}" >&2
+    echo "usage: sand-net {apply|firewall|status|restart-ap}" >&2
     exit 2
     ;;
 esac

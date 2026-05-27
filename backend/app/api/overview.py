@@ -28,7 +28,7 @@ def overview(db: Database = Depends(get_db), _=Depends(require_auth)) -> dict:
     ph = piholesvc.status()
     return {
         "system": sysinfo.summary(),
-        "devices": {"count": db.count_devices()},
+        "devices": {"count": sum(1 for d in netsvc.connected_devices() if d["connected"])},
         "internet": internet,
         "upstream": {"status": upstream["status"], "ssid": upstream["ssid"]},
         "vpn": {"status": "unknown", "profile": None},

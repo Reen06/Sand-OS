@@ -4,6 +4,7 @@ import { icon, paintIcons } from "./icons.js";
 
 /** Create an element. props: class/text/html/dataset/on<Event>/attributes. */
 export function el(tag, props = {}, children = []) {
+  if (Array.isArray(props)) { children = props; props = {}; }
   const node = document.createElement(tag);
   for (const [k, v] of Object.entries(props)) {
     if (v == null || v === false) continue;

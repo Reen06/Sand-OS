@@ -68,28 +68,76 @@ function buildStatusCard() {
 }
 
 /* ---------------------------------------------------------------- portal banner */
-function buildPortalBanner() {
+function buildPortalBanner(onRecheck) {
   let _url = null;
-  const openBtn = el("button", { class: "btn btn--sm btn--warn", text: "Open portal page" });
-  openBtn.addEventListener("click", () => _url && window.open(_url, "_blank"));
+  let _autoTried = false;
 
-  const banner = el("div", { class: "callout callout--warn", style: "display:none" }, [
-    frag(icon("alert", 16)),
-    el("div", { class: "grow" }, [
-      el("div", { class: "fw-600", text: "Captive portal detected" }),
-      el("div", { class: "text-sm",
-        text: "This network requires a sign-in before granting internet access." }),
+  const autoBtn = el(“button”, { class: “btn btn--sm btn--primary”, text: “Retry auto-connect” });
+  const openBtn = el(“button”, { class: “btn btn--sm btn--warn”, text: “Open sign-in page” });
+  const desc    = el(“div”, { class: “text-sm muted” });
+
+  async function _tryAuto() {
+    if (!_url) return;
+    autoBtn.disabled = true;
+    autoBtn.textContent = “Trying…”;
+    desc.textContent = “Router is attempting automatic sign-in…”;
+    try {
+      const res = await api.post(“/wifi/portal/touch”, { url: _url });
+      if (res.online) {
+        banner.style.display = “none”;
+        toast(“Connected — captive portal accepted”, “ok”);
+        onRecheck();
+        return;
+      }
+      if (res.url) _url = res.url;
+      desc.textContent =
+        “Auto-connect didn’t complete — this portal needs manual sign-in. “ +
+        “If your device shows a blank pop-up, close it and tap “ +
+        ““Open sign-in page” below to use your full browser instead.”;
+    } catch {
+      desc.textContent = “Auto-connect failed. Tap “Open sign-in page” to sign in manually.”;
+    }
+    autoBtn.textContent = “Retry auto-connect”;
+    autoBtn.disabled = false;
+  }
+
+  autoBtn.addEventListener(“click”, _tryAuto);
+
+  openBtn.addEventListener(“click”, () => {
+    if (_url) {
+      window.open(_url, “_blank”);
+      desc.textContent =
+        “Sign-in page opened in your browser. Complete sign-in there, “ +
+        “then tap “Retry auto-connect” to confirm the router is online.”;
+      autoBtn.textContent = “Retry auto-connect”;
+      autoBtn.disabled = false;
+      setTimeout(onRecheck, 8000);
+    }
+  });
+
+  const banner = el(“div”, { class: “callout callout--warn”, style: “display:none” }, [
+    frag(icon(“globe”, 16)),
+    el(“div”, { class: “grow” }, [
+      el(“div”, { class: “fw-600”, text: “Captive portal — sign-in required” }),
+      desc,
+      el(“div”, { class: “row”, style: “flex-wrap:wrap;gap:var(--s2);margin-top:var(--s3)” },
+        [autoBtn, openBtn]),
     ]),
-    openBtn,
   ]);
 
   return {
     banner,
     update(portal) {
-      const show = portal && portal.status === "portal";
-      banner.style.display = show ? "" : "none";
-      _url = (portal && portal.url) || null;
-      openBtn.style.display = _url ? "" : "none";
+      const show = portal && portal.status === “portal”;
+      banner.style.display = show ? “” : “none”;
+      if (show) {
+        _url = portal.url || null;
+        if (!_autoTried) {
+          _autoTried = true;
+          _tryAuto();   // attempt silently on first detection
+        }
+      }
+      if (!show) _autoTried = false;  // reset when portal clears
     },
   };
 }
@@ -214,10 +262,17 @@ function buildNetworkList() {
     for (const n of networks) {
       const lockSvg = n.open ? "" : icon("lock", 13);
       const joinBtn = el("button", { class: "btn btn--sm btn--primary", text: "Join" });
-      joinBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (_onConnect) showConnectModal(n, _onConnect);
-      });
+      // Saved networks connect directly (NM has the password); only open the
+      // password modal for unsaved secured networks.
+      const _handleJoin = () => {
+        if (!_onConnect) return;
+        if (n.saved && !n.open) {
+          _onConnect(n.ssid, null);
+        } else {
+          showConnectModal(n, _onConnect);
+        }
+      };
+      joinBtn.addEventListener("click", (e) => { e.stopPropagation(); _handleJoin(); });
       const row = el("div", {
         class: "row",
         style: "padding:var(--s3) 0;border-bottom:1px solid var(--border);cursor:pointer",
@@ -234,7 +289,7 @@ function buildNetworkList() {
         ]),
         joinBtn,
       ]);
-      row.addEventListener("click", () => { if (_onConnect) showConnectModal(n, _onConnect); });
+      row.addEventListener("click", _handleJoin);
       list.append(row);
     }
   }
@@ -300,8 +355,9 @@ export async function render(view) {
     stack,
   );
 
+  // refreshStatus is a hoisted function declaration — safe to reference here.
   const statusCard = buildStatusCard();
-  const portalBanner = buildPortalBanner();
+  const portalBanner = buildPortalBanner(refreshStatus);
   const netList = buildNetworkList();
   const savedCard = buildSavedCard();
 
@@ -326,19 +382,19 @@ export async function render(view) {
 
   async function doConnect(ssid, password) {
     await api.post("/wifi/connect", { ssid, password });
-    toast(`Joining “${ssid}”…`, "info");
+    toast(`Joining "${ssid}"…`, "info");
     setTimeout(refreshStatus, 3500);
   }
 
   async function doForget(conn) {
     if (!await confirmDialog({
-      title: `Forget “${conn.name}”?`,
+      title: `Forget "${conn.name}"?`,
       message: "The saved password will be removed. You can rejoin later.",
       confirmLabel: "Forget", danger: true,
     })) return;
     try {
       await api.del(`/wifi/saved/${conn.uuid}`);
-      toast(`Forgot “${conn.name}”`, "ok");
+      toast(`Forgot "${conn.name}"`, "ok");
       await refreshSaved();
     } catch (err) {
       toast(err.message || "Could not forget network", "error");

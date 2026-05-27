@@ -51,12 +51,37 @@ def _net(cidr: str) -> str:
     return str(ipaddress.ip_network(cidr, strict=False))
 
 
+def _fix_lease_file_ownership() -> None:
+    """Ensure the dnsmasq lease file is writable by the dnsmasq user.
+
+    dnsmasq drops privileges to the dnsmasq user after starting. If the lease
+    file is owned by root, dnsmasq silently fails to record new leases — the
+    file stays frozen at whatever it held when the service last ran as root.
+    This function is safe to call repeatedly (idempotent).
+    """
+    import pwd
+    lease_path = "/var/lib/misc/dnsmasq.leases"
+    os.makedirs(os.path.dirname(lease_path), exist_ok=True)
+    if not os.path.exists(lease_path):
+        open(lease_path, "w").close()
+        os.chmod(lease_path, 0o644)
+    try:
+        dnsmasq_uid = pwd.getpwnam("dnsmasq").pw_uid
+        stat = os.stat(lease_path)
+        if stat.st_uid != dnsmasq_uid:
+            os.chown(lease_path, dnsmasq_uid, -1)
+            log("dnsmasq lease file ownership fixed")
+    except KeyError:
+        log("warning: dnsmasq system user not found; lease file ownership unchanged")
+
+
 def _setting(db: Database, key: str, default: str) -> str:
     val = db.get_setting(key)
     return val if val else default
 
 
 def apply_firewall(db: Database, ifaces: dict) -> bool:
+    import tempfile
     from .services.firewall import device_rules_nft
     ap = ifaces["ap"] or "lo"
     up = ifaces["upstream"] or "lo"
@@ -66,14 +91,32 @@ def apply_firewall(db: Database, ifaces: dict) -> bool:
         "LAN_NET": _net(settings.lan_cidr),
         "GUEST_NET": _net(settings.guest_cidr),
     })
-    # Inject per-device mangle (for policy routing) and forward kill-switch rules.
     mangle_rules, forward_rules = device_rules_nft(db)
-    ruleset = ruleset.replace("        # ROKU-MANGLE-RULES", mangle_rules)
+    ruleset = ruleset.replace("        # ROKU-NETDEV-RULES", mangle_rules)
     ruleset = ruleset.replace("        # ROKU-DEVICE-RULES", forward_rules)
-    out_path = settings.config_dir / "nftables-sand.conf"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(ruleset)
-    ok = run(["nft", "-f", str(out_path)]).returncode == 0
+
+    # Write to a tmpfile so this never fails due to /etc being read-only at
+    # early boot. Best-effort copy to /etc/sandos/ for auditability.
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".conf",
+                                     dir="/tmp", delete=False) as tf:
+        tf.write(ruleset)
+        tmp_path = tf.name
+    try:
+        ok = run(["nft", "-f", tmp_path]).returncode == 0
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+    if ok:
+        try:
+            out_path = settings.config_dir / "nftables-sand.conf"
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(ruleset)
+        except OSError:
+            pass  # /etc may be transiently read-only; nft already loaded fine
+
     log("firewall ruleset applied" if ok else "firewall ruleset FAILED to apply")
     return ok
 
@@ -167,6 +210,10 @@ ap_isolate=1
 
     # Firewall before services so NAT/forwarding are ready.
     apply_firewall(db, ifaces)
+
+    # Ensure dnsmasq can write its lease file (dnsmasq runs as the dnsmasq user,
+    # not root; the file must be writable by that user or lease updates are silently lost).
+    _fix_lease_file_ownership()
 
     # Services
     run(["systemctl", "unmask", "hostapd"])

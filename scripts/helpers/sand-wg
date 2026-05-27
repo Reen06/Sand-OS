@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# roku-wg — privileged WireGuard helper for the Roku-E8C3 dashboard.
+# sand-wg — privileged WireGuard helper for the Roku-E8C3 dashboard.
 #
-# Invoked only via sudo by the unprivileged `roku` user under a scoped
+# Invoked only via sudo by the unprivileged `sand` user under a scoped
 # NOPASSWD rule. Manages wg-quick tunnels with strict argument validation;
 # no caller input ever reaches a shell.
 set -euo pipefail
@@ -10,7 +10,7 @@ WG_DIR="/etc/wireguard"
 
 usage() {
     cat >&2 <<'EOF'
-usage: roku-wg <action> [args]
+usage: sand-wg <action> [args]
   up <iface>         bring a WireGuard tunnel up
   down <iface>       bring a WireGuard tunnel down
   status <iface>     show wg status (JSON-friendly key=value)

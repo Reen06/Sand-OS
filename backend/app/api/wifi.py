@@ -43,6 +43,19 @@ class ConnectBody(BaseModel):
         return v
 
 
+class PortalTouchBody(BaseModel):
+    url: str
+
+    @field_validator("url")
+    @classmethod
+    def _url(cls, v: str) -> str:
+        if not (v.startswith("http://") or v.startswith("https://")):
+            raise ValueError("url must start with http:// or https://")
+        if len(v) > 2048:
+            raise ValueError("url too long")
+        return v
+
+
 class MacBody(BaseModel):
     mac: str
 
@@ -130,6 +143,12 @@ def wifi_forget(uuid: str, _=Depends(require_csrf)) -> dict:
 @router.get("/portal")
 def wifi_portal(_=Depends(require_auth)) -> dict:
     return wifisvc.captive_portal_check()
+
+
+@router.post("/portal/touch")
+def wifi_portal_touch(body: PortalTouchBody, _=Depends(require_csrf)) -> dict:
+    """Fetch the captive portal URL from the Pi's upstream IP to auto-authenticate."""
+    return wifisvc.portal_touch(body.url)
 
 
 @router.post("/mac/randomize")

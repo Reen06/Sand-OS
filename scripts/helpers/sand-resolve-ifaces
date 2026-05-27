@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# roku-resolve-ifaces — resolve AP and UPSTREAM interface names.
+# sand-resolve-ifaces — resolve AP and UPSTREAM interface names.
 #
-# Reads /etc/roku-gateway/interfaces.conf and matches the physical wireless
+# Reads /etc/sandos/interfaces.conf and matches the physical wireless
 # interfaces by kernel driver or MAC. Prints shell-eval'able assignments:
 #
 #   AP_IFACE=wlan0
@@ -13,7 +13,7 @@
 # forced to the AP role so the device stays reachable for recovery.
 set -euo pipefail
 
-CONF="${ROKU_INTERFACES_CONF:-/etc/roku-gateway/interfaces.conf}"
+CONF="${SAND_INTERFACES_CONF:-/etc/sandos/interfaces.conf}"
 AP_MATCH="driver:brcmfmac"
 UPSTREAM_MATCH="driver:rtw88_8821au,driver:rtl8821au,driver:8821au,driver:rtl8xxxu"
 SINGLE_RADIO_ROLE="ap"

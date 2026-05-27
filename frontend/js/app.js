@@ -13,6 +13,7 @@ const PAGES = [
   { path: "/vpn",      file: "vpn.js",      label: "VPN",      icon: "shield",   title: "VPN" },
   { path: "/routing",  file: "routing.js",  label: "Routing",  icon: "route",    title: "Routing" },
   { path: "/guest",    file: "guest.js",    label: "Guest",    icon: "users",    title: "Guest Network" },
+  { path: "/pihole",   file: "pihole.js",   label: "Pi-hole",  icon: "ban",      title: "Pi-hole" },
   { path: "/settings", file: "settings.js", label: "Settings", icon: "settings", title: "Settings" },
   { path: "/logs",     file: "logs.js",     label: "Logs",     icon: "logs",     title: "Logs" },
 ];

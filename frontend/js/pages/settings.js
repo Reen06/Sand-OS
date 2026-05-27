@@ -50,27 +50,82 @@ function accessCard() {
 }
 
 function identityCard() {
-  const body = el("div", { class: "row", style: "justify-content:center;padding:var(--s4)" },
+  const wrap = el("div", { class: "row", style: "justify-content:center;padding:var(--s4)" },
                   [el("div", { class: "spinner" })]);
-  const node = card("Identity", [body]);
+  const node = card("Identity & WiFi", [wrap]);
+
   api.get("/system/settings").then((s) => {
-    clear(body);
-    body.className = "";
-    body.append(
-      el("dl", { class: "kv" }, [
-        el("dt", { text: "Hostname" }), el("dd", { text: s.hostname || "—" }),
-        el("dt", { text: "Access point" }), el("dd", { text: s.ap_ssid || "—" }),
-        el("dt", { text: "Guest SSID" }), el("dd", { text: s.guest_ssid || "—" }),
-        el("dt", { text: "Guest network" }),
-        el("dd", { text: s.guest_enabled === "1" ? "enabled" : "disabled" }),
+    clear(wrap);
+    wrap.className = "";
+
+    const ssidInput = el("input", {
+      class: "input", type: "text", value: s.ap_ssid || "",
+      maxlength: "32", autocomplete: "off",
+      placeholder: "Network name (SSID)",
+    });
+    const passphraseInput = el("input", {
+      class: "input", type: "password", value: "",
+      autocomplete: "new-password", placeholder: "Leave blank to keep current",
+    });
+    const showBtn = el("button", {
+      class: "btn btn--sm", type: "button", text: "Show",
+      style: "min-width:56px",
+    });
+    showBtn.addEventListener("click", () => {
+      const hide = passphraseInput.type === "text";
+      passphraseInput.type = hide ? "password" : "text";
+      showBtn.textContent = hide ? "Show" : "Hide";
+    });
+
+    const CHANNELS = [
+      ["1","1 (2.4 GHz)"],["6","6 (2.4 GHz)"],["11","11 (2.4 GHz)"],
+      ["36","36 (5 GHz)"],["40","40 (5 GHz)"],["44","44 (5 GHz)"],["48","48 (5 GHz)"],
+    ];
+    const chanSel = el("select", { class: "input" },
+      CHANNELS.map(([v, t]) => el("option", { value: v, text: t,
+        selected: String(s.ap_channel) === v })));
+
+    const saveBtn = el("button", { class: "btn btn--primary", type: "submit",
+      text: "Apply & restart AP" });
+
+    const form = el("form", {
+      onsubmit: async (e) => {
+        e.preventDefault();
+        const body = {};
+        const ssid = ssidInput.value.trim();
+        if (ssid) body.ap_ssid = ssid;
+        if (passphraseInput.value) body.ap_passphrase = passphraseInput.value;
+        body.ap_channel = chanSel.value;
+        if (!Object.keys(body).length) { toast("Nothing to save", "info"); return; }
+        setLoading(saveBtn, true);
+        try {
+          await api.post("/system/identity", body);
+          toast("WiFi identity updated — AP is restarting", "ok");
+          passphraseInput.value = "";
+        } catch (err) {
+          toast(err.message || "Could not save settings", "error");
+        } finally { setLoading(saveBtn, false); }
+      },
+    }, [
+      field("WiFi network name (SSID)", ssidInput,
+        "Clients will see this name. Changes take effect immediately."),
+      field("WiFi passphrase",
+        el("div", { class: "row", style: "gap:var(--s2)" }, [passphraseInput, showBtn]),
+        "8–63 characters. Leave blank to keep the current passphrase."),
+      field("Channel", chanSel,
+        "1/6/11 for 2.4 GHz, 36–48 for 5 GHz. Change only if there is interference."),
+      el("div", { class: "spread", style: "margin-top:var(--s4);align-items:center" }, [
+        el("dl", { class: "kv", style: "margin:0;gap:var(--s1) var(--s4)" }, [
+          el("dt", { text: "Hostname" }), el("dd", { class: "mono", text: s.hostname || "—" }),
+        ]),
+        saveBtn,
       ]),
-      el("p", { class: "help mt-4",
-        text: "SSID and hostname become editable once networking is configured." }),
-    );
+    ]);
+    wrap.append(form);
   }).catch(() => {
-    clear(body);
-    body.className = "";
-    body.append(el("p", { class: "muted text-sm", text: "Could not load settings." }));
+    clear(wrap);
+    wrap.className = "";
+    wrap.append(el("p", { class: "muted text-sm", text: "Could not load settings." }));
   });
   return node;
 }

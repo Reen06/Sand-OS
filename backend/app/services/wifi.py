@@ -20,6 +20,9 @@ from ..core.privileged import run_helper
 # Standard connectivity check endpoint — returns 204 when internet is clear.
 _PROBE_URL = "http://connectivitycheck.gstatic.com/generate_204"
 _PROBE_TIMEOUT = 5
+# Fallback URL for DNS-hijack portals: a plain HTTP page that never uses HTTPS,
+# specifically designed to be intercepted and redirected by captive portals.
+_PORTAL_TRIGGER_URL = "http://neverssl.com"
 
 # BSSID escaping in nmcli terse mode: colons in values are preceded by a
 # backslash.  We split on unescaped colons then strip the escapes.
@@ -121,22 +124,105 @@ def randomize_mac(iface: str) -> tuple[bool, str]:
     return res.ok, res.stdout.strip() if res.ok else res.stderr
 
 
+def portal_touch(url: str) -> dict:
+    """Fetch a captive portal URL from the Pi's upstream interface.
+
+    Most free-WiFi portals (hotel, café, airport) authenticate by IP or MAC on
+    first HTTP contact.  Because SandOS NATs all client traffic, the portal sees
+    only the Pi's upstream (wlan1) IP.  Fetching the portal URL here — from the
+    Pi itself — is therefore enough to authenticate every device on the LAN.
+
+    We bind the request to the upstream interface's IP so that on networks that
+    share the AP subnet (e.g. both on 10.0.0.0/24) the request doesn't go out
+    the wrong interface.
+
+    Returns {"online": True} when post-touch connectivity check passes, or
+    {"online": False, "url": <final-url>} so the frontend can show the user a
+    direct link to a credential form if auto-auth wasn't sufficient.
+    """
+    from ..services.network import upstream_status as _up_status
+
+    # Determine the upstream source address to bind to.
+    source_addr: tuple[str, int] | None = None
+    try:
+        up = _up_status()
+        if up.get("ip"):
+            source_addr = (up["ip"], 0)
+    except Exception:
+        pass
+
+    final_url = url
+    try:
+        # Use a custom opener that binds to the upstream IP so the OS routes
+        # the connection out wlan1 even when the portal IP is on the same
+        # subnet as the AP.
+        import http.client
+        import socket
+
+        class _BoundHTTPHandler(urllib.request.HTTPHandler):
+            def http_open(self, req):
+                def _make_conn(host, **kw):
+                    conn = http.client.HTTPConnection(host, **kw)
+                    if source_addr:
+                        conn.source_address = source_addr
+                    return conn
+                return self.do_open(_make_conn, req)
+
+        opener = urllib.request.build_opener(_BoundHTTPHandler)
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent":
+                     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+                     "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 "
+                     "Mobile/15E148 Safari/604.1"},
+        )
+        with opener.open(req, timeout=10) as resp:
+            final_url = resp.geturl() or url
+            resp.read(16384)
+    except urllib.error.HTTPError as exc:
+        loc = exc.headers.get("Location")
+        final_url = loc if loc else url
+    except Exception:
+        pass
+
+    check = captive_portal_check()
+    if check["status"] == "online":
+        return {"online": True}
+    return {"online": False, "url": final_url}
+
+
 def captive_portal_check() -> dict:
     """Probe for a captive portal on the current upstream connection.
 
     Returns {"status": "online"|"portal"|"offline", "url": str|None}.
-    The url field carries the portal redirect URL when status is "portal".
+    url is the portal login page when status is "portal".
+
+    Two interception patterns handled:
+    - HTTP redirect: portal returns 302 → urllib follows → final URL differs from probe
+    - DNS hijack: portal serves content at the probe URL → final URL == probe URL;
+      we return _PORTAL_TRIGGER_URL so the browser triggers the redirect itself.
     """
     try:
         req = urllib.request.Request(_PROBE_URL, method="GET")
         with urllib.request.urlopen(req, timeout=_PROBE_TIMEOUT) as resp:
             if resp.getcode() == 204:
                 return {"status": "online", "url": None}
-            # Got a 200 or redirect body — likely a portal.
-            return {"status": "portal", "url": resp.geturl() or None}
+            # Non-204: portal is serving content.
+            final_url = resp.geturl() or ""
+            # DNS-hijack portals serve at the probe URL with no redirect.
+            if not final_url or final_url == _PROBE_URL:
+                return {"status": "portal", "url": _PORTAL_TRIGGER_URL}
+            return {"status": "portal", "url": final_url}
     except urllib.error.HTTPError as exc:
-        if exc.code in (301, 302, 303, 307, 308):
-            return {"status": "portal", "url": exc.headers.get("Location")}
+        loc = exc.headers.get("Location")
+        if loc:
+            return {"status": "portal", "url": loc}
+        return {"status": "offline", "url": None}
+    except urllib.error.URLError as exc:
+        # SSL error on portal redirect → portal is present but over HTTPS
+        cause = str(getattr(exc, "reason", exc))
+        if "SSL" in cause or "CERTIFICATE" in cause.upper():
+            return {"status": "portal", "url": _PORTAL_TRIGGER_URL}
         return {"status": "offline", "url": None}
     except Exception:
         return {"status": "offline", "url": None}

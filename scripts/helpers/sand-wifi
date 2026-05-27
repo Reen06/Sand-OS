@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# roku-wifi — privileged NetworkManager / WiFi helper for the Roku-E8C3 dashboard.
+# sand-wifi — privileged NetworkManager / WiFi helper for the Roku-E8C3 dashboard.
 #
-# Invoked only via sudo by the unprivileged `roku` service user under a NOPASSWD
+# Invoked only via sudo by the unprivileged `sand` service user under a NOPASSWD
 # rule scoped to exactly this script. Every argument is validated against a strict
 # allowlist; none are ever interpolated into a shell command.
 set -euo pipefail
 
 usage() {
     cat >&2 <<'EOF'
-usage: roku-wifi <action> [args]
+usage: sand-wifi <action> [args]
   scan [iface]                    rescan and list available networks
   connect <iface> <ssid> <pw>     join a WPA/WPA2 network
   connect-open <iface> <ssid>     join an open (no password) network
@@ -113,10 +113,11 @@ case "$cmd" in
     iface="$2"; ssid="$3"
     validate_iface "$iface"
     validate_ssid "$ssid"
-    existing=$(nmcli -t -f NAME,TYPE connection show 2>/dev/null \
-        | awk -F: '/802-11-wireless$/ {print $1}' | grep -Fx "$ssid" || true)
-    if [ -n "$existing" ]; then
-        nmcli connection delete "$ssid" >/dev/null 2>&1 || true
+    # If a saved connection exists for this SSID, bring it up directly — this
+    # preserves the stored password instead of treating the network as open.
+    # nmcli connection names default to the SSID when created via this tool.
+    if nmcli connection up "$ssid" ifname "$iface" 2>/dev/null; then
+        exit 0
     fi
     nmcli device wifi connect "$ssid" ifname "$iface"
     ;;
@@ -133,9 +134,10 @@ case "$cmd" in
     uuid="$2"
     validate_uuid "$uuid"
     # Only delete WiFi-type connections for safety.
-    conn_type=$(nmcli -t -f UUID,TYPE connection show "$uuid" 2>/dev/null \
-        | awk -F: '/802-11-wireless/ {found=1} END {print found ? "wifi" : "other"}')
-    [ "$conn_type" = "wifi" ] || {
+    # nmcli -t -f UUID,TYPE connection show <specific-uuid> exits 2; use
+    # --get-values on the detailed view to reliably read the type field.
+    conn_type=$(nmcli --get-values connection.type connection show "$uuid" 2>/dev/null || true)
+    [ "$conn_type" = "802-11-wireless" ] || {
         echo "connection $uuid is not a WiFi connection" >&2; exit 3
     }
     nmcli connection delete "$uuid"

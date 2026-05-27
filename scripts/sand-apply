@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# roku-apply — operator-triggered cutover into router mode, with auto-rollback.
+# sand-apply — operator-triggered cutover into router mode, with auto-rollback.
 #
-#   sudo roku-apply             start the cutover (drops the current session)
-#   sudo roku-apply --confirm   keep router mode (cancels the auto-rollback)
+#   sudo sand-apply             start the cutover (drops the current session)
+#   sudo sand-apply --confirm   keep router mode (cancels the auto-rollback)
 #
 # The cutover snapshots the current network config, hands the access-point
 # radio to hostapd, and arms a timed rollback. If you do not confirm within
@@ -10,15 +10,15 @@
 # failed cutover can never lock you out.
 set -euo pipefail
 
-ROKU_HOME="${ROKU_HOME:-/opt/roku-gateway}"
-STATE_DIR="/var/lib/roku-gateway"
+SAND_HOME="${SAND_HOME:-/opt/sandos}"
+STATE_DIR="/var/lib/sandos"
 SNAP_DIR="${STATE_DIR}/cutover-snapshot"
-GUARD_UNIT="roku-rollback-guard"
+GUARD_UNIT="sand-rollback-guard"
 ROLLBACK_TIMEOUT="${ROKU_ROLLBACK_TIMEOUT:-300}"
-HELPERS="${ROKU_HOME}/scripts/helpers"
-[ -d "$HELPERS" ] || HELPERS="/usr/local/lib/roku-gateway"
+HELPERS="${SAND_HOME}/scripts/helpers"
+[ -d "$HELPERS" ] || HELPERS="/usr/local/lib/sandos"
 
-die() { echo "roku-apply: $*" >&2; exit 1; }
+die() { echo "sand-apply: $*" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || die "must run as root (use sudo)"
 
 # --- confirm: cancel the pending auto-rollback -----------------------------
@@ -32,7 +32,7 @@ if [ "${1:-}" = "--confirm" ]; then
 fi
 
 # --- resolve the access-point interface ------------------------------------
-eval "$(bash "${HELPERS}/roku-resolve-ifaces")"
+eval "$(bash "${HELPERS}/sand-resolve-ifaces")"
 [ -n "${AP_IFACE:-}" ] || die "no access-point-capable interface found"
 
 cat <<EOF
@@ -47,7 +47,7 @@ cat <<EOF
   To keep router mode after the cutover:
     1. Connect a device to the "Roku-E8C3" WiFi network
     2. Open  http://10.0.0.1  and confirm in Settings,
-       OR run:  sudo roku-apply --confirm
+       OR run:  sudo sand-apply --confirm
 
   If you do not confirm within ${ROLLBACK_TIMEOUT}s the device restores
   its previous network and reboots. You cannot be locked out.
@@ -65,7 +65,7 @@ echo "[1/4] networking snapshot saved to ${SNAP_DIR}"
 
 # --- hand the AP radio to hostapd ------------------------------------------
 mkdir -p /etc/NetworkManager/conf.d
-cat > /etc/NetworkManager/conf.d/00-roku-unmanaged.conf <<EOF
+cat > /etc/NetworkManager/conf.d/00-sand-unmanaged.conf <<EOF
 # Roku-E8C3 — the access-point radio is driven by hostapd, not NetworkManager.
 [keyfile]
 unmanaged-devices=interface-name:${AP_IFACE}
@@ -80,13 +80,13 @@ echo "[2/4] ${AP_IFACE} released from NetworkManager"
 touch /run/sand-cutover-pending
 systemctl stop "${GUARD_UNIT}.timer" 2>/dev/null || true
 systemd-run --quiet --unit="$GUARD_UNIT" --on-active="${ROLLBACK_TIMEOUT}" \
-    "${ROKU_HOME}/scripts/roku-rollback" auto
+    "${SAND_HOME}/scripts/sand-rollback" auto
 echo "[3/4] auto-rollback armed (${ROLLBACK_TIMEOUT}s)"
 
 # --- bring up the access point and dashboard -------------------------------
-systemctl enable roku-netapply roku-dashboard roku-recovery roku-watchdog.timer 2>/dev/null || true
-systemctl restart roku-netapply
-systemctl restart roku-dashboard
+systemctl enable sand-netapply sand-dashboard sand-recovery sand-watchdog.timer 2>/dev/null || true
+systemctl restart sand-netapply
+systemctl restart sand-dashboard
 echo "[4/4] access point and dashboard started — broadcasting Roku-E8C3"
 echo
 echo "Reconnect to Roku-E8C3 and confirm within ${ROLLBACK_TIMEOUT}s."

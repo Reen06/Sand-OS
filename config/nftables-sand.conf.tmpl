@@ -11,17 +11,25 @@
 #   - Guest subnet is isolated from the main LAN.
 #   - NAT masquerades LAN/guest traffic out the upstream interface.
 
+# netdev ingress hook runs before the inet layer strips the link header,
+# so ether saddr is reliably accessible here. MAC→fwmark rules live here.
+table netdev sand
+delete table netdev sand
+
+table netdev sand {
+    chain ap_ingress {
+        type filter hook ingress device "{{AP_IFACE}}" priority 0;
+        # ROKU-NETDEV-RULES
+    }
+}
+
 table inet sand
 delete table inet sand
 
 table inet sand {
-    # Mangle packets in prerouting so ip rule sees the mark before routing.
-    # type=route is the nftables equivalent of iptables mangle PREROUTING;
-    # marks set here affect the routing decision. Per-device MAC→mark rules
-    # are injected here by apply_firewall.
+    # prerouting chain kept for any future inet-level rules.
     chain prerouting {
-        type route hook prerouting priority mangle; policy accept;
-        # ROKU-MANGLE-RULES
+        type filter hook prerouting priority mangle; policy accept;
     }
 
     chain input {
@@ -48,15 +56,17 @@ table inet sand {
     chain forward {
         type filter hook forward priority 0; policy drop;
 
-        ct state established,related accept
         ct state invalid drop
+
+        # Per-device blocked/kill-switch drops BEFORE ct accept so that blocking
+        # a device also kills its existing established connections immediately.
+        # ROKU-DEVICE-RULES
+
+        ct state established,related accept
 
         # Guest isolation — guest subnet cannot reach the main LAN.
         ip saddr {{GUEST_NET}} ip daddr {{LAN_NET}} drop
         ip saddr {{LAN_NET}} ip daddr {{GUEST_NET}} drop
-
-        # Per-device kill-switch and blocked-device drop rules (injected by apply_firewall).
-        # ROKU-DEVICE-RULES
 
         # LAN and guest may reach the internet via the upstream interface.
         iifname "{{AP_IFACE}}" oifname "{{UPSTREAM_IFACE}}" accept

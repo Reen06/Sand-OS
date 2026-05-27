@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# roku-sys — privileged system helper for the Roku-E8C3 dashboard.
+# sand-sys — privileged system helper for the Roku-E8C3 dashboard.
 #
-# Invoked only via sudo by the unprivileged `roku` service user, under a
-# NOPASSWD rule scoped to exactly this script (see /etc/sudoers.d/roku-gateway).
+# Invoked only via sudo by the unprivileged `sand` service user, under a
+# NOPASSWD rule scoped to exactly this script (see /etc/sudoers.d/sandos).
 # Every command validates its arguments against an allowlist; no caller input
 # is ever passed to a shell.
 set -euo pipefail
 
 # Services the dashboard is permitted to control.
-ALLOWED_SERVICES="roku-dashboard roku-firewall roku-netapply roku-recovery \
-roku-watchdog hostapd dnsmasq NetworkManager pihole-FTL wg-quick@wg0 wg-quick@wg1"
+ALLOWED_SERVICES="sand-dashboard sand-firewall sand-netapply sand-recovery \
+sand-watchdog hostapd dnsmasq NetworkManager pihole-FTL wg-quick@wg0 wg-quick@wg1"
 
-usage() { echo "usage: roku-sys {reboot|shutdown|service-status|service-restart <name>}" >&2; exit 2; }
+usage() { echo "usage: sand-sys {reboot|shutdown|service-status|service-restart <name>}" >&2; exit 2; }
 
 cmd="${1:-}"
 case "$cmd" in
@@ -41,7 +41,7 @@ case "$cmd" in
     echo "restarted ${svc}"
     ;;
   cutover-confirm)
-    exec /opt/roku-gateway/scripts/roku-apply --confirm
+    exec /opt/sandos/scripts/sand-apply --confirm
     ;;
   *)
     usage

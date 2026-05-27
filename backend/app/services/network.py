@@ -10,6 +10,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 from ..core.settings import settings
 
@@ -131,6 +132,112 @@ def dhcp_leases() -> list[dict]:
                 "hostname": parts[3] if parts[3] != "*" else None,
             })
     return leases
+
+
+def arp_macs(iface: Optional[str] = None) -> set[str]:
+    """Return the set of MAC addresses with active ARP entries.
+
+    Reads /proc/net/arp directly — no subprocess needed.  Flags=0x2 means the
+    entry is complete (not incomplete/stale).  Optionally filtered to one iface.
+    """
+    macs: set[str] = set()
+    try:
+        text = Path("/proc/net/arp").read_text()
+    except OSError:
+        return macs
+    for line in text.splitlines()[1:]:   # skip header
+        parts = line.split()
+        if len(parts) < 6:
+            continue
+        _ip, _hwtype, flags, mac, _mask, dev = parts[:6]
+        if iface and dev != iface:
+            continue
+        if flags == "0x2" and mac != "00:00:00:00:00:00":
+            macs.add(mac.lower())
+    return macs
+
+
+def _station_macs(iface: str) -> set[str]:
+    """Return MAC addresses currently associated with the AP via iw station dump."""
+    if not iface:
+        return set()
+    out = _run(["iw", "dev", iface, "station", "dump"])
+    macs: set[str] = set()
+    for line in out.splitlines():
+        if line.startswith("Station "):
+            parts = line.split()
+            if len(parts) >= 2:
+                macs.add(parts[1].lower())
+    return macs
+
+
+def _arp_ip_by_mac(iface: Optional[str] = None) -> dict[str, str]:
+    """Return {mac: ip} from the ARP table (any flag), optionally filtered to one iface."""
+    result: dict[str, str] = {}
+    try:
+        text = Path("/proc/net/arp").read_text()
+    except OSError:
+        return result
+    for line in text.splitlines()[1:]:
+        parts = line.split()
+        if len(parts) < 6:
+            continue
+        ip, _hwtype, _flags, mac, _mask, dev = parts[:6]
+        if iface and dev != iface:
+            continue
+        if mac and mac != "00:00:00:00:00:00":
+            result[mac.lower()] = ip
+    return result
+
+
+def connected_devices(ap_iface: Optional[str] = None) -> list[dict]:
+    """Return devices currently connected to the AP.
+
+    Primary source: DHCP leases cross-referenced with ARP (for liveness).
+    Fallback: iw station dump for devices that are associated but have no
+    valid lease — this covers the common case where the dnsmasq lease file
+    is stale or the lease has expired while the device stayed connected.
+    Expired leases are still used for hostname/IP enrichment of station entries.
+    """
+    import time
+    now = int(time.time())
+
+    # Resolve interface if not provided so callers don't have to.
+    if not ap_iface:
+        ap_iface = resolve_interfaces().get("ap") or ""
+
+    active_macs = arp_macs(ap_iface)
+
+    # Index ALL leases (including expired) by MAC for hostname/IP enrichment.
+    all_leases: dict[str, dict] = {l["mac"]: l for l in dhcp_leases()}
+
+    result: list[dict] = []
+    seen_macs: set[str] = set()
+
+    for lease in all_leases.values():
+        if lease["expiry"] and lease["expiry"] < now:
+            continue
+        connected = lease["mac"] in active_macs
+        result.append({**lease, "connected": connected})
+        seen_macs.add(lease["mac"])
+
+    # Devices associated with the AP but missing a valid DHCP lease.
+    # Happens when the lease file is stale (dnsmasq restart, permission error)
+    # while clients remain connected. Use expired lease data for hostname/IP.
+    if ap_iface:
+        arp_ips = _arp_ip_by_mac(ap_iface)
+        for mac in _station_macs(ap_iface):
+            if mac not in seen_macs:
+                stale = all_leases.get(mac, {})
+                result.append({
+                    "mac": mac,
+                    "ip": stale.get("ip") or arp_ips.get(mac),
+                    "hostname": stale.get("hostname"),
+                    "expiry": 0,
+                    "connected": True,
+                })
+
+    return result
 
 
 def internet_check() -> dict:

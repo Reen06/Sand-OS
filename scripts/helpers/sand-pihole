@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# roku-pihole — privileged Pi-hole control helper for the Roku-E8C3 dashboard.
+# sand-pihole — privileged Pi-hole control helper for the Roku-E8C3 dashboard.
 #
-# Sudo-invoked by the unprivileged `roku` user under a scoped NOPASSWD rule.
+# Sudo-invoked by the unprivileged `sand` user under a scoped NOPASSWD rule.
 # All pihole CLI calls are fixed strings with no user input interpolated.
 set -euo pipefail
 
 PIHOLE="${PIHOLE:-/usr/local/bin/pihole}"
 
 usage() {
-    echo "usage: roku-pihole {status|enable|disable|restart|dns-failover-on|dns-failover-off}" >&2
+    echo "usage: sand-pihole {status|enable|disable|restart|dns-failover-on|dns-failover-off}" >&2
     exit 2
 }
 
@@ -66,10 +66,10 @@ case "$cmd" in
   dns-failover-on)
     # Reconfigure dnsmasq to act as resolver when pihole-FTL is down.
     # Sets port=53 with upstream resolvers and restarts dnsmasq.
-    # The roku-net apply command rebuilds dnsmasq from DB with those settings.
-    ROKU_HOME="${ROKU_HOME:-/opt/roku-gateway}"
-    cd "${ROKU_HOME}/backend"
-    "${ROKU_HOME}/venv/bin/python" - <<'PYEOF'
+    # The sand-net apply command rebuilds dnsmasq from DB with those settings.
+    SAND_HOME="${SAND_HOME:-/opt/sandos}"
+    cd "${SAND_HOME}/backend"
+    "${SAND_HOME}/venv/bin/python" - <<'PYEOF'
 import sys, os
 sys.path.insert(0, ".")
 from app.core.settings import settings
@@ -80,14 +80,14 @@ db.set_setting("lan_dns", db.get_setting("lan_ip", settings.lan_cidr.split("/")[
 db.log_event("system", "DNS failover activated — dnsmasq acting as resolver", level="warn")
 db.close()
 PYEOF
-    exec bash "$(dirname "$0")/roku-net" apply
+    exec bash "$(dirname "$0")/sand-net" apply
     ;;
 
   dns-failover-off)
     # Restore normal mode: dnsmasq does DHCP only, pihole-FTL handles DNS.
-    ROKU_HOME="${ROKU_HOME:-/opt/roku-gateway}"
-    cd "${ROKU_HOME}/backend"
-    "${ROKU_HOME}/venv/bin/python" - <<'PYEOF'
+    SAND_HOME="${SAND_HOME:-/opt/sandos}"
+    cd "${SAND_HOME}/backend"
+    "${SAND_HOME}/venv/bin/python" - <<'PYEOF'
 import sys
 sys.path.insert(0, ".")
 from app.core.settings import settings
@@ -98,7 +98,7 @@ db.set_setting("lan_dns", db.get_setting("lan_ip", settings.lan_cidr.split("/")[
 db.log_event("system", "DNS failover cleared — Pi-hole handling DNS", level="info")
 db.close()
 PYEOF
-    exec bash "$(dirname "$0")/roku-net" apply
+    exec bash "$(dirname "$0")/sand-net" apply
     ;;
 
   *) usage ;;

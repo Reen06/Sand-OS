@@ -1,30 +1,30 @@
 #!/usr/bin/env bash
-# roku-rollback — restore the pre-cutover network configuration.
+# sand-rollback — restore the pre-cutover network configuration.
 #
 # Run automatically by the auto-rollback guard if a cutover is not confirmed,
 # and available to the operator as a manual escape hatch:
 #
-#   sudo roku-rollback          restore previous networking and reboot
+#   sudo sand-rollback          restore previous networking and reboot
 #
-# It reverses roku-apply: the access-point services are stopped, the
+# It reverses sand-apply: the access-point services are stopped, the
 # NetworkManager override is removed, and the snapshot of /etc/netplan and the
 # saved NetworkManager connections is restored. The device then reboots so it
 # comes back on its original network.
 set -euo pipefail
 
-SNAP_DIR="/var/lib/roku-gateway/cutover-snapshot"
+SNAP_DIR="/var/lib/sandos/cutover-snapshot"
 MODE="${1:-manual}"
 
-[ "$(id -u)" -eq 0 ] || { echo "roku-rollback: must run as root" >&2; exit 1; }
+[ "$(id -u)" -eq 0 ] || { echo "sand-rollback: must run as root" >&2; exit 1; }
 
-logger -t roku-rollback "restoring pre-cutover networking (mode=${MODE})"
-echo "roku-rollback: restoring previous network configuration..."
+logger -t sand-rollback "restoring pre-cutover networking (mode=${MODE})"
+echo "sand-rollback: restoring previous network configuration..."
 
 # Stop the access point and dashboard.
-systemctl stop hostapd dnsmasq roku-dashboard 2>/dev/null || true
+systemctl stop hostapd dnsmasq sand-dashboard 2>/dev/null || true
 
 # Remove the NetworkManager override so the radio is managed again.
-rm -f /etc/NetworkManager/conf.d/00-roku-unmanaged.conf
+rm -f /etc/NetworkManager/conf.d/00-sand-unmanaged.conf
 
 # Restore the netplan and NetworkManager connection snapshot.
 if [ -d "$SNAP_DIR/netplan" ]; then
@@ -37,10 +37,10 @@ if [ -d "$SNAP_DIR/nm" ]; then
 fi
 
 # Do not re-cut-over on the next boot.
-systemctl disable roku-netapply 2>/dev/null || true
+systemctl disable sand-netapply 2>/dev/null || true
 rm -f /run/sand-cutover-pending
 
-logger -t roku-rollback "networking restored — rebooting"
-echo "roku-rollback: previous networking restored. Rebooting now."
+logger -t sand-rollback "networking restored — rebooting"
+echo "sand-rollback: previous networking restored. Rebooting now."
 sync
 systemctl reboot

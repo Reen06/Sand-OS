@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 
-from .api import auth, guest, logs, network, overview, pihole, routing, system, vpn, wifi
+from .api import auth, devices, guest, logs, network, overview, pihole, routing, system, vpn, wifi
 from .core.settings import settings
 from .db.migrations import init_db
 from .db.repo import Database
@@ -20,7 +20,7 @@ log = logging.getLogger("sand")
 
 _API_ROUTERS = (auth.router, overview.router, network.router,
                 system.router, logs.router, wifi.router, pihole.router,
-                vpn.router, routing.router, guest.router)
+                vpn.router, routing.router, guest.router, devices.router)
 
 
 @asynccontextmanager
@@ -54,6 +54,10 @@ def create_app() -> FastAPI:
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
+        # Never cache static assets — this is a local dashboard that updates
+        # frequently; stale JS/CSS causes hard-to-debug breakage.
+        if not request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
         return response
 
     @app.get("/healthz")

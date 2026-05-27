@@ -149,22 +149,23 @@ def device_rules_nft(db: Database) -> tuple[str, str]:
     devices = db.query(
         "SELECT mac,ip,fwmark,route_profile FROM devices "
         "WHERE fwmark IS NOT NULL AND fwmark != 0")
+    has_blocked = False
     for dev in devices:
         mac = dev["mac"]
         mark = dev["fwmark"]
-        profile = dev.get("route_profile", "direct")
         if not mac or mark is None:
             continue
         mark = int(mark)
         if mark == _FWMARK_BLOCKED:
-            # Blocked: drop in the forward chain (no mark needed).
-            forward_rules.append(
-                f'        ether saddr {mac} iifname "{ap}" '
-                f'counter drop comment "blocked:{mac}"')
-        else:
-            # Mangle prerouting: mark before routing so ip rule steers to wg table.
+            # netdev ingress chain is already bound to the AP interface, so
+            # iifname is not needed (and doesn't resolve in this context).
             mangle_rules.append(
-                f'        ether saddr {mac} iifname "{ap}" '
+                f'        ether saddr {mac} '
+                f'meta mark set {_FWMARK_BLOCKED} comment "blocked:{mac}"')
+            has_blocked = True
+        else:
+            mangle_rules.append(
+                f'        ether saddr {mac} '
                 f'meta mark set {mark} comment "mark:{mac}"')
             # Forward: kill-switch — if mark is set but packet exits on a
             # different interface, the tunnel must be down; drop it.
@@ -173,6 +174,10 @@ def device_rules_nft(db: Database) -> tuple[str, str]:
             forward_rules.append(
                 f'        meta mark {mark} oifname != "{wg_iface}" '
                 f'oifname != "lo" counter drop comment "killswitch:{mac}"')
+
+    if has_blocked:
+        forward_rules.insert(0,
+            f'        meta mark {_FWMARK_BLOCKED} counter drop comment "blocked"')
 
     return "\n".join(mangle_rules), "\n".join(forward_rules)
 
