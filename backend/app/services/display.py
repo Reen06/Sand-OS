@@ -14,8 +14,8 @@ from typing import Optional
 # ── hardware constants ──────────────────────────────────────────────────────
 PIN_RST  = 17
 PIN_DC   = 25
-PIN_CS   = 8
 PIN_BUSY = 24
+# PIN_CS = 8 (SPI0_CE0) is controlled by the SPI kernel driver — do not claim it via GPIO
 
 WIDTH     = 122    # pixels across (short axis)
 HEIGHT    = 250    # pixels down   (long axis)
@@ -34,7 +34,9 @@ class EPD:
         GPIO.setwarnings(False)
         GPIO.setup(PIN_RST,  GPIO.OUT)
         GPIO.setup(PIN_DC,   GPIO.OUT)
-        GPIO.setup(PIN_CS,   GPIO.OUT)
+        # PIN_CS (GPIO 8) is SPI0_CE0 — owned by the kernel SPI driver.
+        # spidev asserts/deasserts CS automatically around each xfer2() call,
+        # so we must not claim it via GPIO or lgpio will refuse.
         GPIO.setup(PIN_BUSY, GPIO.IN)
         self.spi = spidev.SpiDev()
         self.spi.open(0, 0)
@@ -43,16 +45,12 @@ class EPD:
 
     # ── SPI primitives ──────────────────────────────────────────────────────
     def _cmd(self, c: int) -> None:
-        G = self._GPIO
-        G.output(PIN_DC, 0); G.output(PIN_CS, 0)
+        self._GPIO.output(PIN_DC, 0)
         self.spi.xfer2([c])
-        G.output(PIN_CS, 1)
 
     def _dat(self, d) -> None:
-        G = self._GPIO
-        G.output(PIN_DC, 1); G.output(PIN_CS, 0)
+        self._GPIO.output(PIN_DC, 1)
         self.spi.xfer2(d if isinstance(d, list) else [d])
-        G.output(PIN_CS, 1)
 
     def _busy(self, timeout: float = 10.0) -> None:
         t = time.monotonic()
@@ -268,8 +266,14 @@ def update_display() -> None:
         img = render_status()
         epd.show(img)
     finally:
-        epd.sleep()
-        epd.close()
+        try:
+            epd.sleep()
+        except Exception:
+            pass
+        try:
+            epd.close()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

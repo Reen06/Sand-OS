@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import traceback
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ def main() -> int:
         log.error("e-paper busy timeout: %s", exc)
         return 2
     except Exception as exc:
-        log.error("display update failed: %s", exc)
+        log.error("display update failed:\n%s", traceback.format_exc())
         return 3
 
 
