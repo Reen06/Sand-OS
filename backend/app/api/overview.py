@@ -14,6 +14,7 @@ from ..services import network as netsvc
 from ..services import pihole as piholesvc
 from ..services import system as sysinfo
 from ..services import wifi as wifisvc
+from ..services.display import _battery as _read_battery
 from .deps import get_db, require_auth
 
 router = APIRouter(prefix="/overview", tags=["overview"])
@@ -26,6 +27,7 @@ def overview(db: Database = Depends(get_db), _=Depends(require_auth)) -> dict:
     internet = (wifisvc.captive_portal_check() if connected
                 else {"status": "offline", "url": None})
     ph = piholesvc.status()
+    batt_pct, batt_v = _read_battery()
     return {
         "system": sysinfo.summary(),
         "devices": {"count": sum(1 for d in netsvc.connected_devices() if d["connected"])},
@@ -39,5 +41,9 @@ def overview(db: Database = Depends(get_db), _=Depends(require_auth)) -> dict:
             "queries_today": ph["queries"],
             "block_pct": ph["block_pct"],
             "failover": ph["failover"],
+        },
+        "battery": {
+            "percent": batt_pct,
+            "volts": batt_v,
         },
     }

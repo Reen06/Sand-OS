@@ -43,6 +43,7 @@ const PATHS = {
   play: '<path d="M7 5l12 7-12 7z"/>',
   stop: '<rect x="6" y="6" width="12" height="12" rx="1.6"/>',
   dot: '<circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>',
+  battery: '<rect x="2" y="7.5" width="17" height="9" rx="1.6"/><path d="M19 10.5h1.5a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H19"/><path d="M6 11.5h4M8 9.5v4"/>',
 };
 
 export function icon(name, size = 20) {

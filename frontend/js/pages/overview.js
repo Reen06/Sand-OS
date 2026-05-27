@@ -79,6 +79,7 @@ export async function render(view) {
     load: statTile("cpu", "CPU load"),
     memory: statTile("database", "Memory"),
     storage: statTile("database", "Storage"),
+    battery: statTile("battery", "Battery (PiSugar3)"),
   };
 
   const warning = el("div", { hidden: true });
@@ -103,6 +104,28 @@ export async function render(view) {
     el("div", { class: "section-title mt-6", text: "System" }),
     el("div", { class: "grid grid--stats" },
        Object.values(tiles).map((t) => t.node)),
+    el("div", { class: "section-title mt-6", text: "Hardware tools" }),
+    el("div", { class: "grid grid--cards" }, [
+      el("div", { class: "card" }, [
+        el("div", { class: "card__body" }, [
+          el("div", { class: "row", style: "margin-bottom:var(--s3)" }, [
+            frag(icon("battery", 16)),
+            el("span", { class: "fw-600", text: "PiSugar3 Battery" }),
+          ]),
+          el("p", { class: "muted text-sm",
+            text: "Battery management, RTC clock, scheduled wake/shutdown." }),
+          el("div", { style: "margin-top:var(--s4)" }, [
+            el("a", {
+              class: "btn btn--sm btn--primary",
+              href: `http://${location.hostname}:8421`,
+              target: "_blank",
+              rel: "noopener",
+              text: "Open PiSugar dashboard →",
+            }),
+          ]),
+        ]),
+      ]),
+    ]),
   );
 
   async function load(manual) {
@@ -131,6 +154,12 @@ export async function render(view) {
         `${s.memory.percent}% used`, s.memory.percent);
       tiles.storage.set(`${s.storage.used_gb}<small> / ${s.storage.total_gb} GB</small>`,
         `${s.storage.percent}% used`, s.storage.percent);
+      const b = d.battery;
+      if (b && b.percent != null) {
+        tiles.battery.set(`${b.percent}<small>%</small>`, `${b.volts} V`, b.percent);
+      } else {
+        tiles.battery.set("—", "Not detected");
+      }
 
       if (s.throttled) {
         warning.hidden = false;

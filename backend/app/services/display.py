@@ -170,12 +170,12 @@ def _lte_present() -> bool:
 
 
 def _gps_line() -> str:
-    """Return a short GPS status string."""
+    """Return a short GPS status string (max ~12 chars to fit the display)."""
     from pathlib import Path
     import serial
     dev = Path("/dev/ttyUSB1")
     if not dev.exists():
-        return "No GPS"
+        return "No device"
     try:
         with serial.Serial(str(dev), 115200, timeout=2) as s:
             deadline = time.monotonic() + 3
@@ -184,10 +184,13 @@ def _gps_line() -> str:
                 if line.startswith("$GNGGA") or line.startswith("$GPGGA"):
                     parts = line.split(",")
                     if len(parts) > 6 and parts[2] and parts[6] != "0":
-                        lat = parts[2]; lat_d = parts[3]
-                        lon = parts[4]; lon_d = parts[5]
-                        return f"{lat}{lat_d} {lon}{lon_d}"
-                    return "Searching…"
+                        # Trim DDMM.MMMM → DD.MM to keep it short
+                        def _short(deg_str: str, hemi: str) -> str:
+                            return deg_str[:6] + hemi if deg_str else "?"
+                        lat = _short(parts[2], parts[3])
+                        lon = _short(parts[4], parts[5])
+                        return f"{lat} {lon}"
+                    return "Searching"
     except Exception:
         pass
     return "No fix"
@@ -221,6 +224,10 @@ def render_status() -> "PIL.Image.Image":
     batt_str = f"{batt_pct}%  {batt_v}V" if batt_pct is not None else "—"
 
     lte_str = "SIM7600G-H" if _lte_present() else "Not found"
+    gps_str = _gps_line()
+
+    def _clip(s: str, n: int = 13) -> str:
+        return s if len(s) <= n else s[:n - 1] + "…"
 
     img = Image.new("1", (WIDTH, HEIGHT), 255)
     d   = ImageDraw.Draw(img)
@@ -229,14 +236,14 @@ def render_status() -> "PIL.Image.Image":
     d.rectangle([0, 0, WIDTH - 1, 15], fill=0)
     d.text((3, 2), "SandOS  Roku-E8C3", fill=255)
 
-    # Body rows
+    # Body rows — values clipped to ~13 chars to stay on-screen
     rows = [
         ("Batt", batt_str),
         ("Temp", temp_str),
-        ("LTE",  lte_str),
-        ("GPS",  "See /dev/ttyUSB1"),
+        ("LTE",  _clip(lte_str)),
+        ("GPS",  _clip(gps_str)),
         ("", ""),
-        ("WiFi", ssid),
+        ("WiFi", _clip(ssid)),
         ("Up",   up_status),
         ("AP",   ap_ip),
         ("Dev",  str(devices)),

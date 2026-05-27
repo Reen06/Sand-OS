@@ -44,6 +44,7 @@ table inet sand {
         iifname "{{AP_IFACE}}" udp dport { 67, 68 } accept     comment "DHCP"
         iifname "{{AP_IFACE}}" meta l4proto { tcp, udp } th dport 53 accept  comment "DNS"
         iifname "{{AP_IFACE}}" tcp dport { 80, 443 } accept    comment "dashboard"
+        iifname "{{AP_IFACE}}" tcp dport 8421 accept           comment "pisugar"
         iifname "{{AP_IFACE}}" tcp dport 22 accept             comment "ssh (recovery)"
 
         # WireGuard listen ports (tunnels terminate locally).
