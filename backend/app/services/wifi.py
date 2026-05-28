@@ -35,12 +35,19 @@ def _terse_split(line: str) -> list[str]:
     return [p.replace("\\:", ":") for p in parts]
 
 
-def scan_networks(iface: Optional[str] = None) -> list[dict]:
-    """Return available WiFi networks visible from `iface` (or all radios)."""
-    args = ["scan"]
+def scan_networks(iface: Optional[str] = None,
+                  force_rescan: bool = False) -> list[dict]:
+    """Return available WiFi networks.
+
+    force_rescan=False returns cached nmcli results (instant).
+    force_rescan=True  triggers a fresh over-the-air scan (5-15 s).
+    """
+    rescan = "force" if force_rescan else "no"
+    args = ["scan", rescan]
     if iface:
         args.append(iface)
-    res = run_helper("sand-wifi", *args, timeout=20)
+    timeout = 25 if force_rescan else 8
+    res = run_helper("sand-wifi", *args, timeout=timeout)
     networks: list[dict] = []
     seen: set[str] = set()
     for line in res.lines():
@@ -107,9 +114,12 @@ def forget(uuid: str) -> tuple[bool, str]:
 
 
 def get_mac(iface: str) -> Optional[str]:
-    """Return the current hardware/effective MAC of an interface."""
-    res = run_helper("sand-wifi", "mac-get", iface, timeout=5)
-    return res.stdout.strip() if res.ok else None
+    """Return the current MAC of an interface (reads /sys directly — no sudo)."""
+    from pathlib import Path
+    try:
+        return Path(f"/sys/class/net/{iface}/address").read_text().strip() or None
+    except OSError:
+        return None
 
 
 def set_mac(iface: str, mac: str) -> tuple[bool, str]:

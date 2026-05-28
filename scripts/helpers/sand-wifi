@@ -82,14 +82,19 @@ cmd="${1:-}"
 case "$cmd" in
 
   scan)
-    iface="${2:-}"
+    # Usage: scan <rescan> [iface]
+    # rescan: "force" triggers a fresh OTA scan; "no" returns cached results.
+    [ "$#" -ge 2 ] || usage
+    rescan="${2:-no}"
+    [[ "$rescan" == "force" || "$rescan" == "no" ]] || usage
+    iface="${3:-}"
     if [ -n "$iface" ]; then
         validate_iface "$iface"
         nmcli --terse --fields SSID,BSSID,SIGNAL,SECURITY,CHAN,FREQ \
-            device wifi list --rescan yes ifname "$iface" 2>/dev/null || true
+            device wifi list --rescan "$rescan" ifname "$iface" 2>/dev/null || true
     else
         nmcli --terse --fields SSID,BSSID,SIGNAL,SECURITY,CHAN,FREQ \
-            device wifi list --rescan yes 2>/dev/null || true
+            device wifi list --rescan "$rescan" 2>/dev/null || true
     fi
     ;;
 

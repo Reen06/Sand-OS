@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, field_validator
 
 from ..services import network as netsvc
@@ -79,25 +79,27 @@ def _upstream_iface() -> str:
 
 @router.get("/status")
 def wifi_status(_=Depends(require_auth)) -> dict:
+    """Fast status endpoint — no blocking portal check."""
     ifaces = netsvc.resolve_interfaces()
     up = ifaces.get("upstream")
     upstream = netsvc.upstream_status()
-    portal = wifisvc.captive_portal_check() if upstream.get("status") == "connected" else {
-        "status": "offline", "url": None
-    }
     mac = wifisvc.get_mac(up) if up else None
     return {
         "interface": up,
         "upstream": upstream,
-        "portal": portal,
         "mac": mac,
     }
 
 
 @router.get("/scan")
-def wifi_scan(_=Depends(require_auth)) -> dict:
+def wifi_scan(force: bool = Query(False), _=Depends(require_auth)) -> dict:
+    """List visible networks.
+
+    force=false (default) returns cached results instantly.
+    force=true  triggers a fresh over-the-air scan (takes 5-15 s).
+    """
     iface = _upstream_iface()
-    networks = wifisvc.scan_networks(iface)
+    networks = wifisvc.scan_networks(iface, force_rescan=force)
     saved = {c["name"] for c in wifisvc.saved_connections()}
     for n in networks:
         n["saved"] = n["ssid"] in saved
